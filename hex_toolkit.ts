@@ -1,5 +1,3 @@
-import * as THREE from "three"
-export const defaultColor = 0xeeeeee
 export type vec2 = {x: number, y:number}
 
 abstract class Board<H extends Hex> {
@@ -8,6 +6,9 @@ abstract class Board<H extends Hex> {
 
   }
   abstract build(...args: any[]): void
+  getTileByCoords(coords: vec2) {
+    return this.hexes.find(hex => hex.coords.x == coords.x && hex.coords.y == coords.y)
+  }
 }
 
 export class Grid<H extends Hex> extends Board<H> {
@@ -58,16 +59,11 @@ export class HexaBoard<H extends Hex> extends Board<H> {
 
 export class Hex {
   static objects: Hex[] = []
-  radius: number;
-  height: number
-  isTargetted: boolean =false;
   coords: {
     x: number,
     y: number
   } = {x: 0, y: 0}
-  constructor(radius: number, height: number) {
-    this.radius = radius;
-    this.height = height;
+  constructor(...args: any[]) {
     Hex.objects.push(this)
   }
   //arrow function would get actually erased
@@ -79,31 +75,6 @@ export class Hex {
   }
 }
 
-export class VisualHex extends Hex {
-  static objects: VisualHex[] = []
-  mesh: THREE.Mesh;
-  constructor(radius: number, height: number) {
-    super(radius, height)
-    this.mesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, radius, height, 6, 1), 
-      new THREE.MeshStandardMaterial({color: defaultColor})
-    )
-    this.mesh.rotation.set(Math.PI/2, 0, 0)
-    VisualHex.objects.push(this)
-  }
-  getMat = (): THREE.MeshStandardMaterial => {
-    if(Array.isArray(this.mesh.material)) {
-      return this.mesh.material[0] as THREE.MeshStandardMaterial
-    }
-    return this.mesh.material as THREE.MeshStandardMaterial
-  }
-  placeOnGrid(x: number, y: number, gridOffset: number = 0) {
-    super.placeOnGrid(x, y)
-    this.mesh.position.set(
-      (gridOffset + this.radius) * (Math.sqrt(3) *  x + Math.sqrt(3)/2 * y), (gridOffset+this.radius) * 3./2 * y, 0 
-    )
-  };
-}
 
 export const select_hexes_diagonally = (t: vec2, options: {r:boolean, q:boolean, s:boolean} = {r: true, q: true, s: true}): Hex[] => {
   return Hex.objects.filter((t2) => (options.r && t2.coords.x == t.x) || (options.q && t2.coords.y == t.y) || (options.s && -t2.coords.x-t2.coords.y == -t.x - t.y))
@@ -131,26 +102,3 @@ export function select_hexes_around(coords: vec2): Hex[] {
   return tiles
 }
 
-
-let raycaster = new THREE.Raycaster();
-let intersects: THREE.Intersection[] = [];
-export let pointer: vec2;
-export const getMouseoverFn = (renderer: THREE.WebGLRenderer, cam: THREE.Camera) => {
-  renderer.domElement.addEventListener("mousemove", (e) => {
-    pointer = {
-          x: (e.clientX / renderer.domElement.clientWidth) * 2 - 1,
-          y: -(e.clientY / renderer.domElement.clientHeight) * 2 + 1,
-      } 
-    }, )
-  const select_hex_with_mouse_over = () => {
-    for(let o of VisualHex.objects) {
-      raycaster.setFromCamera(pointer, cam);
-      intersects = raycaster.intersectObject(o.mesh);
-      if(intersects[0]) {
-        return o;
-      }
-    }
-    return null;
-  }
-  return select_hex_with_mouse_over
-}
