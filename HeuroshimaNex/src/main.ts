@@ -5,7 +5,7 @@ import { io } from "socket.io-client"
 import { HexaBoard, vec2 } from "../../hex_toolkit"
 import { VisualHex, getMouseoverFn, TileState, getColorFrom } from './visual_hex'
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
-import { Player } from "../../common"
+import { Player, buildStructureInterface, response, TileBuiltType, tileInterface } from "../../common"
 
 const element = document.querySelector("#app")!
 const build_structure_btn = document.querySelector("#butt")!
@@ -16,6 +16,9 @@ const currentCoordsX = document.querySelector("#coordsX")!
 const currentCoordsY = document.querySelector("#coordsY")!
 const currentTileStatus = document.getElementById("tileStatus")!
 const gamerList = document.querySelector("#gamerList")!
+const build_army_btn = document.querySelector("#armyBtn")!
+const build_obstacle_btn = document.querySelector("#obstacleBtn")!
+const build_base_btn = document.querySelector("#baseBtn")!
 function showCurrentTile(hex?: InteractiveVisualHex) {
   if(!hex) {
     statsScreen.classList.add("hidden")
@@ -23,20 +26,42 @@ function showCurrentTile(hex?: InteractiveVisualHex) {
     statsScreen.classList.remove("hidden")
     currentCoordsX.innerHTML = hex.coords.x.toString()
     currentCoordsY.innerHTML = hex.coords.y.toString()
-    currentTileStatus.innerHTML=hex.getIsTaken() ? "Taken" : "Free"
+    let s:string
+    switch(hex.tileOccupant){
+      case(TileBuiltType.free):{
+        s="Free"
+        break;
+      } 
+      case(TileBuiltType.army):{
+        s="Army"
+        break;
+      }
+      case(TileBuiltType.obstacle): {
+        s="Obstacle"
+        break;
+      }
+      case(TileBuiltType.base): {
+        s="Base"
+        break;
+      }
+    }
+    currentTileStatus.innerHTML=s
   }
 }
 function showBuildMenu(hex?:InteractiveVisualHex){
   if(hex) {
     builderScreen.classList.remove("hidden")
+    
   } else {
     builderScreen.classList.add("hidden")
   }
 }
+
 function reset(){
   console.log("reset!")
   for(let h of board.hexes){
-    h.setState(TileState.free)
+    h.reset()
+    h.tileOccupant=TileBuiltType.free
     h.updateColor()
   }
 }
@@ -66,7 +91,55 @@ function updatePlayerList(){
   gamerList.appendChild(tag)
 }
 
+
+function buildObject(type:TileBuiltType,tile:vec2){
+  const hex = board.getTileByCoords(tile)
+  hex && socket.emit("req:build", tile, type, (response: response<buildStructureInterface>) => {
+    switch(response.status) {
+      case "OK": {
+        hex.build(response.data!.type)//do zmian
+        hex.buildStructure(response.data!.type)//do zmian
+        showCurrentTile(hex)
+        break;
+      }
+      case "NOPE": {
+        console.error("req:build response:", response)        
+      }
+    }
+  })
+}
+
+function checkIfCanPlace() {
+  if(!player.selectedTile) {
+    console.log("No tile selected!")
+    return null;
+  }
+  const tile = board.getTileByCoords(player.selectedTile)
+  if(!tile) {
+    console.error("The tile doesnt exist!")
+    return null;
+  }
+  return tile
+}
+
 build_structure_btn.addEventListener("click", ()=>{
+  const tile = checkIfCanPlace()
+  tile && buildObject(TileBuiltType.base, tile.coords)
+})
+build_army_btn.addEventListener("click", ()=>{
+  const tile = checkIfCanPlace()
+  tile && buildObject(TileBuiltType.army, tile.coords)
+})
+build_base_btn.addEventListener("click", ()=>{
+  const tile = checkIfCanPlace()
+  tile && buildObject(TileBuiltType.base, tile.coords)
+})
+build_obstacle_btn.addEventListener("click", ()=>{
+  const tile = checkIfCanPlace()
+  tile && buildObject(TileBuiltType.obstacle, tile.coords)
+})
+/*
+build_army_btn.addEventListener("click", ()=>{
   if(!player.selectedTile) {
     console.log("No tile selected!")
     return;
@@ -76,11 +149,11 @@ build_structure_btn.addEventListener("click", ()=>{
     console.error("The tile doesnt exist!")
     return;
   }
-  socket.emit("req:build", tile.coords, (response: any) => {
+  socket.emit("req:buildArmy", tile.coords, (response: any) => {
     switch(response.status) {
       case "OK": {
-        tile.build()
-        tile.buildStructure()
+        tile.build(TileBuiltType.army)//do zmian
+        tile.buildStructure(TileBuiltType.army)//do zmian
         currentTileStatus.innerHTML="Taken"
         break;
       }
@@ -90,7 +163,7 @@ build_structure_btn.addEventListener("click", ()=>{
     }
   })
 })
-
+*/
 class VisualHexaBoard extends HexaBoard<InteractiveVisualHex> {
   constructor(radius: number, gap: number) {
     super(radius, gap, InteractiveVisualHex)
@@ -130,9 +203,6 @@ class InteractiveVisualHex extends VisualHex {
   constructor(radius: number, height: number) {
     super(radius, height)
   }
-  setState(state: TileState) {
-    super.setState(state)
-  }
   target(){
     console.log("target")
     clearSelection()
@@ -152,6 +222,7 @@ class InteractiveVisualHex extends VisualHex {
       this.updateColor()
       showBuildMenu(this)
     }
+    else{console.log("Zombie tile")}
   } 
   deselect() {
     this.setState(TileState.free)
@@ -169,10 +240,12 @@ class InteractiveVisualHex extends VisualHex {
       super.updateColor()
     }
   }
-  buildStructure() {
+  buildStructure(type:TileBuiltType) {
     console.log(this.owner)
     this.setState(TileState.taken)
     this.updateColor()
+    this.build(type)
+    //this.tileOccupant=
   }
 }
 
@@ -266,36 +339,45 @@ let p: Player | undefined
 
 const socket = io("ws://heuroshimanex.ddns.net:8000/")
 
+const handleBoardUpdate = (response: response<tileInterface[]>) => {
+  console.log(response)
+  switch(response.status) {
+    case "OK": {
+      response.data?.forEach((hexState, idx) => {
+        board.hexes[idx].loadState(hexState)
+      })
+      board.updateTiles()
+      break;
+    }
+    default: {
+      console.log("JP2GMD")
+    }
+  }
+}
+
+socket.on("broad:board", (tiles: tileInterface[]) => {
+  board.hexes.forEach(
+    (hex, idx) => hex.loadState(tiles[idx])
+  )
+  board.updateTiles()
+})
 socket.on("connect", () => {
   console.log("connect")
-  socket.emit("getBoard", (response: {status: string, hexes: boolean[]}) => {
-    switch(response.status) {
-      case "OK": {
-        response.hexes.forEach((hexState, idx) => {
-          board.hexes[idx].tileStatus = hexState ? TileState.taken : TileState.free
-        })
-        board.updateTiles()
-        break;
-      }
-      default: {
-        console.log("JP2GMD")
-      }
-      }
-    }
-  )
+  socket.emit("getBoard", handleBoardUpdate)
 })
 socket.on("broad:restart", () => {
   reset()
 })
-socket.on("broad:build", (tileCoords: vec2, playerId: string) => {
-  console.log(tileCoords)
-  let tile = board.getTileByCoords(tileCoords)
-  let player = Player.objects.find(p => p.id == playerId)
+socket.on("broad:build", (broadcast: buildStructureInterface) => {
+  let tile = board.getTileByCoords(broadcast.tile)
+  let player = Player.objects.find(p => p.id == broadcast.playerId)
   if(tile && player) {
     tile.setOwner(player)
-    tile.buildStructure()
+    tile.buildStructure(broadcast.type)
   }
+  console.log("broad: build", tile)
 })
+
 socket.on("broad:create_player", (data) => {
   console.log("borad create")
   new Player(data.id, data.color)  

@@ -11,7 +11,12 @@ export enum TileState {
   takenSelected=0x3e543b //darker green
 
 }
-
+export enum TileBuiltType{
+  free,
+  army,
+  obstacle,
+  base
+}
 export const getColorFrom = (tple: [number, number, number]) => {
   return new THREE.Color(tple[0]/255.0, tple[1]/255.0, tple[2]/255.0)
 }

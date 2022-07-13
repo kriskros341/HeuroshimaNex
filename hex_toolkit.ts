@@ -44,6 +44,9 @@ export class HexaBoard<H extends Hex> extends Board<H> {
     this.radius = radius
     this.gap = gap
   }
+  rebuild(...args: any[]) {
+    this.type.objects = this.type.objects.filter((h: H) => !this.hexes.includes(h))
+  }
   build(...args: any[]) {
     for(let i = -this.radius; i <= this.radius; i++) {
       let r1 = Math.max(-this.radius, -i - this.radius)
