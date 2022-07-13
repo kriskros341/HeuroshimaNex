@@ -1,14 +1,6 @@
 import {Hex, vec2} from "./hex_toolkit"
 
-export enum TileState {
-  free = 0xeeeeee,//grey
-  taken=0x00ff00,//gree
-  freeTargetted=0x0000ff,//blue
-  freeSelected=0xff0000,//red
-  takenTargetted=0x36862b,//dark green
-  takenSelected=0x3e543b //darker green
-}
-export enum TileBuiltType{
+export enum TileBuild{
   free,
   army,
   obstacle,
@@ -22,60 +14,48 @@ export interface response<T> {
 
 export interface tileInterface {
   ownerId: string | undefined
-  buildType: TileBuiltType
+  buildType: TileBuild
 }
 
 export interface buildStructureInterface {
   tile: vec2
-  type: TileBuiltType
+  type: TileBuild
   playerId: string
 }
 
 export class GameHex extends Hex {
   isTaken: boolean = false
-  tileStatus: TileState = TileState.free
-  tileOccupant:TileBuiltType=TileBuiltType.free
+  tileBuild:TileBuild=TileBuild.free
   owner: Player | undefined
   setOwner(player: Player) {
     this.owner = player
   }
   reset() {
-    this.tileOccupant = TileBuiltType.free
-    this.tileStatus=TileState.free
+    this.tileBuild = TileBuild.free
     this.isTaken = false
     this.owner = undefined
     this.clearOwner()
   }
   loadState(state: tileInterface) : void {
     this.owner = Player.getById(state.ownerId)
-    this.tileOccupant = state.buildType
-    this.tileStatus = state.buildType == TileBuiltType.free ? TileState.free : TileState.taken
-    this.isTaken = state.buildType == TileBuiltType.free ? false : true
+    this.tileBuild = state.buildType
+    this.isTaken = state.buildType == TileBuild.free ? false : true
   }
   serialize() : tileInterface {
     return {
       ownerId: this.owner?.id,
-      buildType: this.tileOccupant
+      buildType: this.tileBuild
     }
   }
   clearOwner() {
     this.owner = undefined
   }
-  getIsTaken(){
-    if(this.tileStatus==TileState.taken||this.tileStatus==TileState.takenSelected||this.tileStatus==TileState.takenTargetted)
-   { return true}
-    return false
-  }
   isTargetted: boolean = false;
   constructor() {
     super()
   }
-  build(type:TileBuiltType) {
-      this.tileStatus=TileState.taken
-      this.tileOccupant=type
-  }
-  select(){
-    this.tileStatus = this.isTaken ? TileState.takenSelected : TileState.freeSelected
+  build(type:TileBuild) {
+      this.tileBuild=type
   }
 }
 

@@ -1,16 +1,7 @@
 import { vec2 } from "../../hex_toolkit"
-import { GameHex, Player } from "../../common"
+import { GameHex, Player, tileInterface, TileBuild } from "../../common"
 import * as THREE from "three"
 
-export enum TileState {
-  free = 0xeeeeee,//grey
-  freeTargetted=0x0000ff,//blue
-  freeSelected=0xff0000,//red
-  taken=0x00ff00,//gree
-  takenTargetted=0x36862b,//dark green
-  takenSelected=0x3e543b //darker green
-
-}
 export enum TileBuiltType{
   free,
   army,
@@ -21,11 +12,41 @@ export const getColorFrom = (tple: [number, number, number]) => {
   return new THREE.Color(tple[0]/255.0, tple[1]/255.0, tple[2]/255.0)
 }
 
+export enum TileState {
+  free = 0xeeeeee,//grey
+  taken=0x00ff00,//gree
+  freeTargetted=0x0000ff,//blue
+  freeSelected=0xff0000,//red
+  takenTargetted=0x36862b,//dark green
+  takenSelected=0x3e543b //darker green
+}
+
 export class VisualHex extends GameHex {
   static objects: VisualHex[] = []
   mesh: THREE.Mesh;
   radius: number
   height: number
+  tileStatus: TileState = TileState.free
+  reset() {
+    this.tileStatus=TileState.free
+    super.reset()
+  }
+  getIsTaken(){
+    if(this.tileStatus==TileState.taken||this.tileStatus==TileState.takenSelected||this.tileStatus==TileState.takenTargetted)
+   { return true}
+    return false
+  }
+  build(type: TileBuild) {
+    super.build(type)
+    this.tileStatus=TileState.taken
+  }
+  select(){
+    this.tileStatus = this.isTaken ? TileState.takenSelected : TileState.freeSelected
+  }
+  loadState(state: tileInterface) {
+    super.loadState(state)
+    this.tileStatus = state.buildType == TileBuild.free ? TileState.free : TileState.taken
+  }
   constructor(radius: number, height: number) {
     super()
     this.radius = radius;

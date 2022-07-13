@@ -4,7 +4,7 @@ import express from "express"
 import cors from "cors"
 
 import { Hex, HexaBoard, vec2 } from "../hex_toolkit"
-import { GameHex, Player, TileState,TileBuiltType, buildStructureInterface, response, tileInterface} from "../common"
+import { GameHex, Player, TileBuild, buildStructureInterface, response, tileInterface} from "../common"
 
 const app = express()
 
@@ -35,7 +35,7 @@ let hb = new HexaBoard<InteractiveHex>(4, 0, InteractiveHex)
 hb.build()
 
 const getBoardStatus = () => {
-  return hb.hexes.map((hex) => hex.tileStatus == TileState.taken)
+  return hb.hexes.map((hex) => hex.tileBuild == TileBuild.free)
 }
 
 io.on("connection", socket => {
@@ -62,13 +62,13 @@ io.on("connection", socket => {
     const boardStatus: tileInterface[] = hb.hexes.map(hex => hex.serialize())
     callback({status: "OK", data: boardStatus})
   })
-  socket.on("req:build", (tileCoords: vec2, type: TileBuiltType, callback: (o: response<buildStructureInterface>) => void) => {
+  socket.on("req:build", (tileCoords: vec2, type: TileBuild, callback: (o: response<buildStructureInterface>) => void) => {
     const tile = hb.getTileByCoords(tileCoords)
     if(!tile) {
       callback({status: "NOPE"})
       return
     }
-    if(tile.tileStatus == TileState.taken) {
+    if(tile.tileBuild != TileBuild.free) {
       callback({status: "NOPE"})
       return
     }

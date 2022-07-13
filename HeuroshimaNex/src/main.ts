@@ -5,7 +5,7 @@ import { io } from "socket.io-client"
 import { HexaBoard, vec2 } from "../../hex_toolkit"
 import { VisualHex, getMouseoverFn, TileState, getColorFrom } from './visual_hex'
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
-import { Player, buildStructureInterface, response, TileBuiltType, tileInterface } from "../../common"
+import { Player, buildStructureInterface, response, TileBuild, tileInterface } from "../../common"
 
 const element = document.querySelector("#app")!
 const build_structure_btn = document.querySelector("#butt")!
@@ -27,20 +27,20 @@ function showCurrentTile(hex?: InteractiveVisualHex) {
     currentCoordsX.innerHTML = hex.coords.x.toString()
     currentCoordsY.innerHTML = hex.coords.y.toString()
     let s:string
-    switch(hex.tileOccupant){
-      case(TileBuiltType.free):{
+    switch(hex.tileBuild){
+      case(TileBuild.free):{
         s="Free"
         break;
       } 
-      case(TileBuiltType.army):{
+      case(TileBuild.army):{
         s="Army"
         break;
       }
-      case(TileBuiltType.obstacle): {
+      case(TileBuild.obstacle): {
         s="Obstacle"
         break;
       }
-      case(TileBuiltType.base): {
+      case(TileBuild.base): {
         s="Base"
         break;
       }
@@ -61,7 +61,7 @@ function reset(){
   console.log("reset!")
   for(let h of board.hexes){
     h.reset()
-    h.tileOccupant=TileBuiltType.free
+    h.tileBuild=TileBuild.free
     h.updateColor()
   }
 }
@@ -92,7 +92,7 @@ function updatePlayerList(){
 }
 
 
-function buildObject(type:TileBuiltType,tile:vec2){
+function buildObject(type:TileBuild,tile:vec2){
   const hex = board.getTileByCoords(tile)
   hex && socket.emit("req:build", tile, type, (response: response<buildStructureInterface>) => {
     switch(response.status) {
@@ -124,19 +124,19 @@ function checkIfCanPlace() {
 
 build_structure_btn.addEventListener("click", ()=>{
   const tile = checkIfCanPlace()
-  tile && buildObject(TileBuiltType.base, tile.coords)
+  tile && buildObject(TileBuild.base, tile.coords)
 })
 build_army_btn.addEventListener("click", ()=>{
   const tile = checkIfCanPlace()
-  tile && buildObject(TileBuiltType.army, tile.coords)
+  tile && buildObject(TileBuild.army, tile.coords)
 })
 build_base_btn.addEventListener("click", ()=>{
   const tile = checkIfCanPlace()
-  tile && buildObject(TileBuiltType.base, tile.coords)
+  tile && buildObject(TileBuild.base, tile.coords)
 })
 build_obstacle_btn.addEventListener("click", ()=>{
   const tile = checkIfCanPlace()
-  tile && buildObject(TileBuiltType.obstacle, tile.coords)
+  tile && buildObject(TileBuild.obstacle, tile.coords)
 })
 /*
 build_army_btn.addEventListener("click", ()=>{
@@ -240,7 +240,7 @@ class InteractiveVisualHex extends VisualHex {
       super.updateColor()
     }
   }
-  buildStructure(type:TileBuiltType) {
+  buildStructure(type:TileBuild) {
     console.log(this.owner)
     this.setState(TileState.taken)
     this.updateColor()
@@ -409,16 +409,20 @@ rerender()
 
 /*
 Cele na teraz:
+- png na płytkach
+- tury graczy
+    ->tylko gracz turowy może postawić coś na mapie
+    -> guzik end turn/wybór pola to koniec tury
+    ->oznaczenie gracza którego jest tura
+- naprawienie podświetlenia zielonego (optional)
+- określone kolory kolejnych graczy, kropka z danym kolorem przy id gracza
 
-
-- Tylko gracz którego jest tura na raz jest 
-w stanie oznaczyć pole na mapie
-
-- Serwer odpowiada za logikę i stan gry 
-i klient odpowiada za wyświetlanie i interakcję
-
-klient i serwer powinni dzielić tylko to co muszą
-
-- Klient pyta serwera czy można oznaczyć dane pole
-  - Jeśli nie wyświetli się błąd i nic się nie stanie
+Dalsze cele:
+  - więcej typów obiektów do postawienia
+  - liczby na odpowiednich bokach
+  - userwerowienie logiki, klient tylko interakcje z mapą
+  - Klient pyta serwera czy można oznaczyć dane pole
+  - tura składa się z faz
+  - fazy są oznaczone
+  - Jeśli nie wyświetli się błąd i nic się nie stanie (chyba zrobione)
 */
