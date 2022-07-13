@@ -1,8 +1,20 @@
 import { vec2 } from "../../hex_toolkit"
-import { GameHex } from "../../common"
+import { GameHex, Player } from "../../common"
 import * as THREE from "three"
 
-export const defaultColor = 0xeeeeee
+export enum TileState {
+  free = 0xeeeeee,//grey
+  freeTargetted=0x0000ff,//blue
+  freeSelected=0xff0000,//red
+  taken=0x00ff00,//gree
+  takenTargetted=0x36862b,//dark green
+  takenSelected=0x3e543b //darker green
+
+}
+
+export const getColorFrom = (tple: [number, number, number]) => {
+  return new THREE.Color(tple[0]/255.0, tple[1]/255.0, tple[2]/255.0)
+}
 
 export class VisualHex extends GameHex {
   static objects: VisualHex[] = []
@@ -15,11 +27,24 @@ export class VisualHex extends GameHex {
     this.height = height;
     this.mesh = new THREE.Mesh(
       new THREE.CylinderGeometry(radius, radius, height, 6, 1), 
-      new THREE.MeshStandardMaterial({color: defaultColor})
+      new THREE.MeshStandardMaterial({color: TileState.free})
     )
+    this.buildColor = TileState.taken
     this.mesh.rotation.set(Math.PI/2, 0, 0)
     VisualHex.objects.push(this)
   }
+  buildColor: THREE.ColorRepresentation
+  setOwner(player: Player) {
+    super.setOwner(player)
+    this.buildColor = getColorFrom(player.color!)
+  }
+  setState(state: TileState){
+    this.tileStatus = state
+  }
+  updateColor(color?: THREE.ColorRepresentation){ 
+    this.getMat().color.set(color ? color : this.tileStatus)
+  }
+  
   getMat = (): THREE.MeshStandardMaterial => {
     if(Array.isArray(this.mesh.material)) {
       return this.mesh.material[0] as THREE.MeshStandardMaterial
@@ -37,7 +62,7 @@ export class VisualHex extends GameHex {
 
 let raycaster = new THREE.Raycaster();
 let intersects: THREE.Intersection[] = [];
-export let pointer: vec2;
+export let pointer: vec2 | undefined = undefined
 export function getMouseoverFn<H extends VisualHex>(renderer: THREE.WebGLRenderer, cam: THREE.Camera) {
   renderer.domElement.addEventListener("mousemove", (e) => {
     pointer = {
@@ -46,6 +71,8 @@ export function getMouseoverFn<H extends VisualHex>(renderer: THREE.WebGLRendere
       } 
     }, )
   const select_hex_with_mouse_over = () => {
+    if(!pointer)
+      return null
     for(let o of VisualHex.objects) {
       raycaster.setFromCamera(pointer, cam);
       intersects = raycaster.intersectObject(o.mesh);

@@ -1,55 +1,178 @@
 import * as THREE from 'three'
-import { WebGL1Renderer, OrthographicCamera, Triangle } from 'three'
+import { WebGL1Renderer, OrthographicCamera } from 'three'
 import './style.css'
 import { io } from "socket.io-client"
-
 import { HexaBoard, vec2 } from "../../hex_toolkit"
-import { VisualHex, getMouseoverFn, defaultColor } from './visual_hex'
+import { VisualHex, getMouseoverFn, TileState, getColorFrom } from './visual_hex'
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
+import { Player } from "../../common"
 
 const element = document.querySelector("#app")!
-const button = document.querySelector("#butt")!
+const build_structure_btn = document.querySelector("#butt")!
 const restart_server_btn = document.querySelector("#restart_server_btn")!
+const statsScreen = document.getElementById("stats")!
+const builderScreen = document.getElementById("builder")!
+const currentCoordsX = document.querySelector("#coordsX")!
+const currentCoordsY = document.querySelector("#coordsY")!
+const currentTileStatus = document.getElementById("tileStatus")!
+const gamerList = document.querySelector("#gamerList")!
+function showCurrentTile(hex?: InteractiveVisualHex) {
+  if(!hex) {
+    statsScreen.classList.add("hidden")
+  } else {
+    statsScreen.classList.remove("hidden")
+    currentCoordsX.innerHTML = hex.coords.x.toString()
+    currentCoordsY.innerHTML = hex.coords.y.toString()
+    currentTileStatus.innerHTML=hex.getIsTaken() ? "Taken" : "Free"
+  }
+}
+function showBuildMenu(hex?:InteractiveVisualHex){
+  if(hex) {
+    builderScreen.classList.remove("hidden")
+  } else {
+    builderScreen.classList.add("hidden")
+  }
+}
+function reset(){
+  console.log("reset!")
+  for(let h of board.hexes){
+    h.setState(TileState.free)
+    h.updateColor()
+  }
+}
+
 restart_server_btn.addEventListener("click", () => {
   socket.emit("req:restart", (response: any) => {
-    console.log(response)
+    if(response.status=="OK"){
+      console.log("reset done!")
+    }
   })
 })
-button.addEventListener("click", ()=>{
-  if(!thisPlayer.selectedTile) {
+
+function updatePlayerList(){
+  gamerList.innerHTML= "List of gamers:"
+  const br = document.createElement("br")
+  gamerList.appendChild(br)
+  const tag = document.createElement("ol")
+  for(let k of Player.objects){
+    const gamerItem = document.createElement("li")
+    console.log(k.id)
+    gamerItem.innerHTML = k.id
+    if(k.id == socket.id) {
+      gamerItem.classList.add("mine")
+    }
+    tag.appendChild(gamerItem)
+  }
+  gamerList.appendChild(tag)
+}
+
+build_structure_btn.addEventListener("click", ()=>{
+  if(!player.selectedTile) {
     console.log("No tile selected!")
     return;
   }
-  const tile = board.getTileByCoords(thisPlayer.selectedTile)
+  const tile = board.getTileByCoords(player.selectedTile)
   if(!tile) {
     console.error("The tile doesnt exist!")
     return;
   }
-  socket.emit("req:tileSelect", tile.coords, (response: any) => {
+  socket.emit("req:build", tile.coords, (response: any) => {
     switch(response.status) {
       case "OK": {
+        tile.build()
         tile.buildStructure()
+        currentTileStatus.innerHTML="Taken"
         break;
       }
       case "NOPE": {
-        console.error("req:tileSelect response:", response)
-        
+        console.error("req:build response:", response)        
       }
     }
   })
 })
 
+class VisualHexaBoard extends HexaBoard<InteractiveVisualHex> {
+  constructor(radius: number, gap: number) {
+    super(radius, gap, InteractiveVisualHex)
+  }
+  updateTiles() {
+    this.hexes.forEach((hex) => {
+      hex.updateColor()
+    })
+  }
+}
+
+const clearSelection = () => {
+  console.log(
+    InteractiveVisualHex.objects.filter(t => t.tileStatus == TileState.freeTargetted)
+  )
+  InteractiveVisualHex.objects
+    .filter(
+      tile => tile.tileStatus == TileState.freeTargetted ||
+      tile.tileStatus==TileState.freeSelected
+    )
+    .forEach(
+      tile => tile.setState(TileState.free)
+    )
+  InteractiveVisualHex.objects
+    .filter(
+      tile => tile.tileStatus == TileState.takenTargetted ||
+      tile.tileStatus == TileState.takenSelected
+    )
+    .forEach(
+      tile => tile.setState(TileState.taken)
+    )
+  InteractiveVisualHex.objects.forEach(tile => tile.updateColor())
+}
+
+
 class InteractiveVisualHex extends VisualHex {
   constructor(radius: number, height: number) {
     super(radius, height)
   }
-  select() {
-    this.getMat().color.set(0xff0000)
+  setState(state: TileState) {
+    super.setState(state)
   }
+  target(){
+    console.log("target")
+    clearSelection()
+    this.setState(
+      this.tileStatus == TileState.taken ? TileState.takenTargetted : TileState.freeTargetted
+    )
+    this.updateColor()
+    showCurrentTile(this)
+    showBuildMenu()
+    player.selectedTile = undefined
+  }
+  select() {
+    clearSelection()
+    console.log("SELECT")
+    if(this.tileStatus != TileState.taken) {
+      this.setState(TileState.freeSelected)
+      this.updateColor()
+      showBuildMenu(this)
+    }
+  } 
   deselect() {
-    this.getMat().color.set(defaultColor)
+    this.setState(TileState.free)
+    this.updateColor()
+    statsScreen.classList.add("hidden")
+    builderScreen.classList.add("hidden")
+  }
+  updateColor(): void {
+    if(this.owner?.color) {
+      console.log("jdjd")
+      super.updateColor(
+        getColorFrom(this.owner.color)
+      )
+    } else {
+      super.updateColor()
+    }
   }
   buildStructure() {
-    this.getMat().color.set(0x00ff00)
+    console.log(this.owner)
+    this.setState(TileState.taken)
+    this.updateColor()
   }
 }
 
@@ -60,30 +183,28 @@ class MyRenderer extends WebGL1Renderer {
     this.setSize(innerWidth, innerHeight)
     this.setClearColor(new THREE.Color(0, 0, 0))
   }
-  selectTile() {
-    for(let h of board.hexes)
-    {
-      h.getMat().color.set(defaultColor)
-      h.isTargetted=false
-    }
-    let o = select_hex_with_mouse_over()
-    if(o){
-      o.getMat().color.set(0x692137)
-      o.isTargetted=true
-    }
-  }
   setupEventListeners() {
     this.domElement.addEventListener("dblclick",()=>{
       let o = select_hex_with_mouse_over()
       if(o) {
         o.select();
-        thisPlayer.selectedTile = o.coords
+        player.selectedTile = o.coords
+      }
+    })
+    
+    this.domElement.addEventListener("click", () => {
+      let o = select_hex_with_mouse_over()
+      if(o) {
+        o.target()
+      } else {
+        console.log("TESET")
+        player.selectedTile = undefined
+        showCurrentTile()
+        showBuildMenu()
+        clearSelection()
       }
     })
     /*
-    this.domElement.addEventListener("click", () => {
-      this.selectTile()
-    })
     this.domElement.addEventListener("pointerup", () => {
       clicked = false
     })
@@ -95,7 +216,6 @@ class MyRenderer extends WebGL1Renderer {
       }
     })
     */
-
   }
 }
 
@@ -106,19 +226,17 @@ class MyCamera extends OrthographicCamera{
     super(  -MyCamera.aspectRatio * MyCamera.viewSize / 2, MyCamera.aspectRatio * MyCamera.viewSize / 2, 
     MyCamera.viewSize / 2, -MyCamera.viewSize / 2,
     0, 1000)
-    this.position.set(0,0,2)
+    this.position.set(0,0,20)
   }
 }
 
-class Player {
+class VisualPlayer {
   selectedTile: vec2 | undefined
   constructor() {
-
   }
 }
 
-const thisPlayer = new Player()
-
+const player = new VisualPlayer()
 
 //DISPLAYED
 
@@ -127,33 +245,82 @@ const renderer = new MyRenderer()
 const scene = new THREE.Scene()
 const camera = new MyCamera()
 const select_hex_with_mouse_over = getMouseoverFn<InteractiveVisualHex>(renderer, camera)
-const board = new HexaBoard<InteractiveVisualHex>(4, 0.25, InteractiveVisualHex)
+let board = new VisualHexaBoard(4, 0.25)
+
+
+const point = new THREE.PointLight(0xffffff, 0.5)
+point.position.set(0, 0, 5)
+scene.add(point)
 const light = new THREE.AmbientLight(0xffffff, 0.4)
+scene.add(light)
 
 
 board.build(1, 1, 0)
 board.hexes.forEach(hex => scene.add(hex.mesh))
 element?.appendChild(renderer.domElement)
-scene.add(light)
 renderer.setupEventListeners()
 
 //SOCKET
 
+let p: Player | undefined
 
-const socket = io("ws://83.26.59.107:8000/")
+const socket = io("ws://heuroshimanex.ddns.net:8000/")
 
-socket.on("resp:getBoard", (hb: HexaBoard<VisualHex>) => {
-  console.log(hb)
-})
 socket.on("connect", () => {
   console.log("connect")
-  socket.emit("getBoard")
+  socket.emit("getBoard", (response: {status: string, hexes: boolean[]}) => {
+    switch(response.status) {
+      case "OK": {
+        response.hexes.forEach((hexState, idx) => {
+          board.hexes[idx].tileStatus = hexState ? TileState.taken : TileState.free
+        })
+        board.updateTiles()
+        break;
+      }
+      default: {
+        console.log("JP2GMD")
+      }
+      }
+    }
+  )
+})
+socket.on("broad:restart", () => {
+  reset()
+})
+socket.on("broad:build", (tileCoords: vec2, playerId: string) => {
+  console.log(tileCoords)
+  let tile = board.getTileByCoords(tileCoords)
+  let player = Player.objects.find(p => p.id == playerId)
+  if(tile && player) {
+    tile.setOwner(player)
+    tile.buildStructure()
+  }
+})
+socket.on("broad:create_player", (data) => {
+  console.log("borad create")
+  new Player(data.id, data.color)  
+  updatePlayerList()
+})
+socket.on("resp:create_player", (data) => {
+  console.log("resp create")
+  new Player(data.id, data.color)  
+  updatePlayerList()
+})
+socket.on("broad:remove_player", id => {
+  console.log("broad:remove", id)
+  Player.objects = Player.objects.filter(p => p.id != id)
+  updatePlayerList()
+})
+socket.emit("req:create_player", (response: {code: string, color: [number, number, number]}) => {
+  p = new Player(socket.id)
+  p.setColor(response.color)
 })
 
 //RENDER
-
+const oc = new OrbitControls(camera, renderer.domElement)
 const rerender = () => {
   requestAnimationFrame(rerender)
+  oc.update()
   renderer.render(scene, camera)
 }
 rerender()
@@ -161,7 +328,7 @@ rerender()
 /*
 Cele na teraz:
 
-- Wielu graczy widzi tą samą mapę
+
 - Tylko gracz którego jest tura na raz jest 
 w stanie oznaczyć pole na mapie
 
@@ -172,5 +339,4 @@ klient i serwer powinni dzielić tylko to co muszą
 
 - Klient pyta serwera czy można oznaczyć dane pole
   - Jeśli nie wyświetli się błąd i nic się nie stanie
-
 */

@@ -8,12 +8,19 @@
 body {
   margin: 0
 }
-#gui {
+.gui {
   position: absolute;
-  background-color: aquamarine;
+  background-color: grey;
   color: white;
   padding:8px;
-}
-#butt{
+  flex-grow:column wrap;
   
+}
+
+.mine {
+  color: green
+}
+
+.hidden{
+  display: none;
 }

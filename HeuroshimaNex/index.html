@@ -7,14 +7,35 @@
     <title>Vite App</title>
   </head>
   <body>
-    <div id="gui">
+    <div class="gui">
+      <div id="main gui">
       GUIII
-      <button id="butt">Turn selected into blue if free</button>
-      <button id="restart_server_btn">Restart server</button>
-      <div id="menu"><ul>
-        <li>House</li>
-        <li>Turret</li>
-        <li>Base</li>
+        <br>
+        <div id="gamerList">
+          List of gamers:<br>
+          
+        <!--
+          to będzie robione on the go przez js
+        -->
+        </div>
+          <button id="butt">Turn selected into green if free</button>
+        <br>
+          <button id="restart_server_btn">Restart server</button>
+        <br>
+      </div>
+   
+      <div id="stats" class="hidden">
+        Tile selected:<br>
+        x: <span id="coordsX">someX</span><br>
+        y: <span id="coordsY">someY</span><br>
+        current state: <span id="tileStatus"></span><br>
+      </div>    
+      <div id="builder" class="hidden">
+        Pick a structure to build: <br>
+        <ul>
+          <li><button>Army Unit</button></li>
+          <li><button>Obstacle</button></li>
+          <li><button>Main Base</button></li>
         </ul>
       </div>
     </div>
