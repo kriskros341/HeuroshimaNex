@@ -5,7 +5,7 @@ import { io } from "socket.io-client"
 import { HexaBoard, vec2 } from "../../hex_toolkit"
 import { VisualHex, getMouseoverFn, TileState, getColorFrom } from './visual_hex'
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
-import { Player, buildStructureInterface, response, TileBuild, tileInterface } from "../../common"
+import { color, Player, buildStructureInterface, response, TileBuild, tileInterface, playerInterface, responseStatus, positiveResponse, negativeResponse } from "../../common"
 
 const element = document.querySelector("#app")!
 const build_structure_btn = document.querySelector("#butt")!
@@ -69,6 +69,7 @@ function reset(){
 restart_server_btn.addEventListener("click", () => {
   socket.emit("req:restart", (response: any) => {
     if(response.status=="OK"){
+      reset()
       console.log("reset done!")
     }
   })
@@ -97,8 +98,15 @@ function buildObject(type:TileBuild,tile:vec2){
   hex && socket.emit("req:build", tile, type, (response: response<buildStructureInterface>) => {
     switch(response.status) {
       case "OK": {
-        hex.build(response.data!.type)//do zmian
-        hex.buildStructure(response.data!.type)//do zmian
+        const r = response as positiveResponse<buildStructureInterface>
+        const player = Player.getById(r.data.playerId)
+        if(!player) {
+          console.error("req:build critical: PLAYER DOES NOT EXIST")
+          return
+        }
+        hex.setOwner(player)
+        hex.build(r.data.type)//do zmian
+        hex.buildStructure(r.data.type)//do zmian
         showCurrentTile(hex)
         break;
       }
@@ -110,6 +118,10 @@ function buildObject(type:TileBuild,tile:vec2){
 }
 
 function checkIfCanPlace() {
+  if(!player) {
+    console.log("Player does not exist")
+    return
+  }
   if(!player.selectedTile) {
     console.log("No tile selected!")
     return null;
@@ -176,9 +188,6 @@ class VisualHexaBoard extends HexaBoard<InteractiveVisualHex> {
 }
 
 const clearSelection = () => {
-  console.log(
-    InteractiveVisualHex.objects.filter(t => t.tileStatus == TileState.freeTargetted)
-  )
   InteractiveVisualHex.objects
     .filter(
       tile => tile.tileStatus == TileState.freeTargetted ||
@@ -212,7 +221,7 @@ class InteractiveVisualHex extends VisualHex {
     this.updateColor()
     showCurrentTile(this)
     showBuildMenu()
-    player.selectedTile = undefined
+    player && player.resetSelected()
   }
   select() {
     clearSelection()
@@ -261,7 +270,7 @@ class MyRenderer extends WebGL1Renderer {
       let o = select_hex_with_mouse_over()
       if(o) {
         o.select();
-        player.selectedTile = o.coords
+        player && player.setSelected(o.coords)
       }
     })
     
@@ -270,8 +279,7 @@ class MyRenderer extends WebGL1Renderer {
       if(o) {
         o.target()
       } else {
-        console.log("TESET")
-        player.selectedTile = undefined
+        player && player.resetSelected()
         showCurrentTile()
         showBuildMenu()
         clearSelection()
@@ -303,13 +311,19 @@ class MyCamera extends OrthographicCamera{
   }
 }
 
-class VisualPlayer {
-  selectedTile: vec2 | undefined
-  constructor() {
+class VisualPlayer extends Player {
+  selectedTile: vec2 | null = null
+  constructor(socketid: string, color: color) {
+    super(socketid, color)
+  }
+  resetSelected() {
+    this.selectedTile = null
+  }
+  setSelected(newSel: vec2) {
+    this.selectedTile = newSel
   }
 }
 
-const player = new VisualPlayer()
 
 //DISPLAYED
 
@@ -335,24 +349,22 @@ renderer.setupEventListeners()
 
 //SOCKET
 
-let p: Player | undefined
+let player: VisualPlayer | null = null
 
 const socket = io("ws://heuroshimanex.ddns.net:8000/")
 
-const handleBoardUpdate = (response: response<tileInterface[]>) => {
-  console.log(response)
-  switch(response.status) {
-    case "OK": {
-      response.data?.forEach((hexState, idx) => {
-        board.hexes[idx].loadState(hexState)
-      })
-      board.updateTiles()
-      break;
-    }
-    default: {
-      console.log("JP2GMD")
-    }
+function unwrap<T>(response: response<T>, handler?: (reason: negativeResponse) => void) {
+  if(response.status == "OK") {
+    return (response as positiveResponse<T>).data
   }
+  handler ? handler(response) : console.log(response)
+  return null
+}
+const handleBoardUpdate = (response: response<tileInterface[]>) => {
+  unwrap(response)?.forEach((hexState, idx) => {
+    board.hexes[idx].loadState(hexState)
+  })
+  board.updateTiles()
 }
 
 socket.on("broad:board", (tiles: tileInterface[]) => {
@@ -362,7 +374,10 @@ socket.on("broad:board", (tiles: tileInterface[]) => {
   board.updateTiles()
 })
 socket.on("connect", () => {
-  console.log("connect")
+  //SETUP GAME
+  socket.emit("req:create_player", (response: response<{color: color}>) => {
+    console.log(response)
+  })
   socket.emit("getBoard", handleBoardUpdate)
 })
 socket.on("broad:restart", () => {
@@ -378,26 +393,31 @@ socket.on("broad:build", (broadcast: buildStructureInterface) => {
   console.log("broad: build", tile)
 })
 
-socket.on("broad:create_player", (data) => {
-  console.log("borad create")
-  new Player(data.id, data.color)  
+function setPlayerList(playerList: playerInterface[]) {
+  Player.objects = []
+  console.log("player_list")
+  playerList.forEach((playerData) => {
+    let p = new VisualPlayer(playerData.id, playerData.color)  
+    if(socket.id == p.id) {
+      player = p
+    }
+  })
   updatePlayerList()
+}
+
+socket.on("broad:player_list", (broadcastedData: playerInterface[]) => {
+  console.log("broad:player_list")
+  setPlayerList(broadcastedData)
 })
-socket.on("resp:create_player", (data) => {
-  console.log("resp create")
-  new Player(data.id, data.color)  
-  updatePlayerList()
-})
+
 socket.on("broad:remove_player", id => {
   console.log("broad:remove", id)
   Player.objects = Player.objects.filter(p => p.id != id)
   updatePlayerList()
 })
-socket.emit("req:create_player", (response: {code: string, color: [number, number, number]}) => {
-  p = new Player(socket.id)
-  p.setColor(response.color)
+socket.on("reconnect", () => {
+  console.log("rec!")
 })
-
 //RENDER
 const oc = new OrbitControls(camera, renderer.domElement)
 const rerender = () => {

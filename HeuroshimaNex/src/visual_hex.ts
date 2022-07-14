@@ -88,7 +88,7 @@ export class VisualHex extends GameHex {
 
 let raycaster = new THREE.Raycaster();
 let intersects: THREE.Intersection[] = [];
-export let pointer: vec2 | undefined = undefined
+export let pointer: vec2 | null = null
 export function getMouseoverFn<H extends VisualHex>(renderer: THREE.WebGLRenderer, cam: THREE.Camera) {
   renderer.domElement.addEventListener("mousemove", (e) => {
     pointer = {
