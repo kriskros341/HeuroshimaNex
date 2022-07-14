@@ -4,7 +4,7 @@ import express from "express"
 import cors from "cors"
 
 import { HexaBoard, vec2 } from "../hex_toolkit"
-import { negativeResponse, positiveResponse, responseStatus, color, GameHex, Player, TileBuild, buildStructureInterface, response, tileInterface, playerInterface} from "../common"
+import { Game, responseStatus, color, GameHex, Player, TileBuild, buildStructureInterface, response, tileInterface, playerInterface} from "../common"
 
 const app = express()
 
@@ -23,41 +23,6 @@ const io = new Server(server, {
   },
 })
 
-class Game {
-  board: HexaBoard<GameHex>
-  constructor() {
-    this.board = new HexaBoard<GameHex>(4, 0, GameHex)
-    this.board.build()
-  }
-  serializePlayers() {
-    return Player.objects.map(p => p.serialize())
-  }
-  buildStructure(playerId: string, tileCoords: vec2, type: TileBuild) {
-    const tile = game.board.getTileByCoords(tileCoords)
-    if(tile?.tileBuild != TileBuild.free)
-      return null
-    tile.build(type)
-    tile.setOwner(Player.getById(playerId)!)
-    const data = {
-      type: type, 
-      tile: tileCoords, 
-      playerId: playerId
-    } as buildStructureInterface
-    return data
-  }
-  resetBoard() {
-    game.board = new HexaBoard<GameHex>(4, 0, GameHex)
-    game.board.build()
-  }
-  serializeBoard() {
-    const boardStatus: tileInterface[] = this.board.hexes.map(hex => hex.serialize())
-    return boardStatus
-  }
-  removePlayer(id: string) {
-    Player.getById(id)?.remove()
-    game.board.hexes.filter(hex => hex.owner?.id == id).forEach(hex => hex.reset())
-  }
-}
 
 class NetworkGame extends Game {
   reset(socket: Socket) {
@@ -79,6 +44,7 @@ class NetworkGame extends Game {
   join(socket: Socket) {
     socket.join("players")
     const player = new Player(socket.id)
+    super.joinGame(player)
     const playerList = this.serializePlayers()
     socket.broadcast.emit("broad:player_list", playerList)
     socket.emit("broad:player_list", playerList)
@@ -98,6 +64,8 @@ const game = new NetworkGame()
 
 type callback<T> = (response: response<T>) => void
 
+const ERR_TURN = {status: responseStatus.NOPE, reason: "Not your fucking turn bitch"}
+
 io.on("connection", async socket => {
   socket.join("sockets")
   console.log("connected!", socket.id)
@@ -110,6 +78,7 @@ io.on("connection", async socket => {
     callback(game.join(socket))
   })
   socket.on("req:player_list", (callback: callback<playerInterface[]>) => {
+    console.log(game.serializePlayers())
     callback(responseFrom(game.serializePlayers(), "failed to serialize players"))
   })
   socket.on("getBoard", (callback: callback<tileInterface[]>) => {
@@ -118,7 +87,9 @@ io.on("connection", async socket => {
   })
   socket.on("req:build", (tileCoords: vec2, type: TileBuild, callback: callback<buildStructureInterface>) => {
     console.log("build structure from", socket.id)
-    callback(game.build(socket, tileCoords, type))
+    const toReturn = game.validateTurn(socket.id) ? 
+      game.build(socket, tileCoords, type) : ERR_TURN
+    callback(toReturn)
   })
   socket.on("disconnect", () => {
     console.log("dc from", socket.id)

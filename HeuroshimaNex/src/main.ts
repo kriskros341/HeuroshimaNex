@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { WebGL1Renderer, OrthographicCamera } from 'three'
+import { WebGL1Renderer, OrthographicCamera, TextureLoader } from 'three'
 import './style.css'
 import { io } from "socket.io-client"
 import { HexaBoard, vec2 } from "../../hex_toolkit"
@@ -48,6 +48,7 @@ function showCurrentTile(hex?: InteractiveVisualHex) {
     currentTileStatus.innerHTML=s
   }
 }
+
 function showBuildMenu(hex?:InteractiveVisualHex){
   if(hex) {
     builderScreen.classList.remove("hidden")
@@ -84,7 +85,7 @@ function updatePlayerList(){
     const gamerItem = document.createElement("li")
     console.log(k.id)
     gamerItem.innerHTML = k.id
-    if(k.id == socket.id) {
+   if(k.id == socket.id) {
       gamerItem.classList.add("mine")
     }
     tag.appendChild(gamerItem)
@@ -183,6 +184,7 @@ class VisualHexaBoard extends HexaBoard<InteractiveVisualHex> {
   updateTiles() {
     this.hexes.forEach((hex) => {
       hex.updateColor()
+      
     })
   }
 }
@@ -250,10 +252,12 @@ class InteractiveVisualHex extends VisualHex {
     }
   }
   buildStructure(type:TileBuild) {
-    console.log(this.owner)
     this.setState(TileState.taken)
+    this.tileBuild=type
     this.updateColor()
     this.build(type)
+    this.setPicture(type)
+    
     //this.tileOccupant=
   }
 }
@@ -323,7 +327,6 @@ class VisualPlayer extends Player {
     this.selectedTile = newSel
   }
 }
-
 
 //DISPLAYED
 
@@ -429,9 +432,10 @@ rerender()
 
 /*
 Cele na teraz:
-- png na płytkach
+
+- obiektowy rewrite klienta
 - tury graczy
-    ->tylko gracz turowy może postawić coś na mapie
+    ->tylko gracz turowy może postawić coś na mapie (done)
     -> guzik end turn/wybór pola to koniec tury
     ->oznaczenie gracza którego jest tura
 - naprawienie podświetlenia zielonego (optional)

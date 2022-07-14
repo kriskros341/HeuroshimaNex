@@ -21,15 +21,45 @@ export enum TileState {
   takenSelected=0x3e543b //darker green
 }
 
+const base_image = new THREE.TextureLoader().load("assets/base.png")
+base_image.center = new THREE.Vector2(0.5, 0.5)
+base_image.rotation = Math.PI/2
+base_image.repeat.set(1.5, 1.5)
+const obstacle_image = new THREE.TextureLoader().load("../assets/line.png")
+obstacle_image.center = new THREE.Vector2(0.5, 0.5)
+obstacle_image.rotation = Math.PI/2
+const army_image = new THREE.TextureLoader().load("../assets/weapon.png")
+army_image.center = new THREE.Vector2(0.5, 0.5)
+army_image.rotation = Math.PI/2
+army_image.repeat.set(1.5, 1.5)
+
+const picMap = new Map<TileBuild, THREE.Texture>()
+picMap.set(TileBuild.army, army_image)
+picMap.set(TileBuild.base, base_image)
+picMap.set(TileBuild.obstacle, obstacle_image)
+
+
+console.log(base_image)
 export class VisualHex extends GameHex {
   static objects: VisualHex[] = []
   mesh: THREE.Mesh;
   radius: number
   height: number
   tileStatus: TileState = TileState.free
-  reset() {
-    this.tileStatus=TileState.free
-    super.reset()
+  buildColor: THREE.ColorRepresentation
+  constructor(radius: number, height: number) {
+    super()
+    this.radius = radius;
+    this.height = height;
+    this.mesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius, radius, height, 6, 1), 
+      //new THREE.MeshStandardMaterial({color: TileState.free})
+      new THREE.MeshStandardMaterial({map: null})
+    )
+   
+    this.buildColor = TileState.taken
+    this.mesh.rotation.set(Math.PI/2, 0, 0)
+    VisualHex.objects.push(this)
   }
   getIsTaken(){
     if(this.tileStatus==TileState.taken||this.tileStatus==TileState.takenSelected||this.tileStatus==TileState.takenTargetted)
@@ -43,23 +73,16 @@ export class VisualHex extends GameHex {
   select(){
     this.tileStatus = this.isTaken ? TileState.takenSelected : TileState.freeSelected
   }
+  reset() {
+    this.tileStatus=TileState.free
+    super.reset()
+    this.setPicture()
+  }
   loadState(state: tileInterface) {
-    super.loadState(state)
     this.tileStatus = state.buildType == TileBuild.free ? TileState.free : TileState.taken
+    super.loadState(state)
+    this.setPicture()
   }
-  constructor(radius: number, height: number) {
-    super()
-    this.radius = radius;
-    this.height = height;
-    this.mesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, radius, height, 6, 1), 
-      new THREE.MeshStandardMaterial({color: TileState.free})
-    )
-    this.buildColor = TileState.taken
-    this.mesh.rotation.set(Math.PI/2, 0, 0)
-    VisualHex.objects.push(this)
-  }
-  buildColor: THREE.ColorRepresentation
   setOwner(player: Player) {
     super.setOwner(player)
     this.buildColor = getColorFrom(player.color!)
@@ -70,7 +93,19 @@ export class VisualHex extends GameHex {
   updateColor(color?: THREE.ColorRepresentation){ 
     this.getMat().color.set(color ? color : this.tileStatus)
   }
-  
+  setPicture(state?: TileBuild){
+    this.mesh.material = 
+      new THREE.MeshStandardMaterial(
+        {
+          map: picMap.get(state ? state : this.tileBuild), 
+          color: this.tileStatus
+        }
+      )
+    this.updateColor()
+    //this.getMat().map = army_image//picMap.get(state) || null
+    console.log("Pic shown")
+   
+  }
   getMat = (): THREE.MeshStandardMaterial => {
     if(Array.isArray(this.mesh.material)) {
       return this.mesh.material[0] as THREE.MeshStandardMaterial

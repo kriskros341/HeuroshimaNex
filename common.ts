@@ -1,4 +1,4 @@
-import {Hex, vec2} from "./hex_toolkit"
+import {Hex, vec2, HexaBoard} from "./hex_toolkit"
 
 export enum TileBuild{
   free,
@@ -114,11 +114,57 @@ export class Player {
 }
 
 
-class Game {
-  turn: number = 0
-  movingPlayer: number = 0
+export class Game {
   players: Player[] = []
+  board: HexaBoard<GameHex>
+  turn: number = 0
   constructor() {
+    this.board = new HexaBoard<GameHex>(4, 0, GameHex)
+    this.board.build()
   }
-
+  getCurrentPlayer() {
+    return this.players[this.turn % this.players.length]
+  }
+  nextTurn() {
+    this.turn += 1
+  }
+  serializePlayers() {
+    return this.players.map(p => p.serialize())
+  }
+  buildStructure(playerId: string, tileCoords: vec2, type: TileBuild) {
+    const tile = this.board.getTileByCoords(tileCoords)
+    if(tile?.tileBuild != TileBuild.free)
+      return null
+    tile.build(type)
+    tile.setOwner(Player.getById(playerId)!)
+    const data = {
+      type: type, 
+      tile: tileCoords, 
+      playerId: playerId
+    } as buildStructureInterface
+    this.nextTurn()
+    return data
+  }
+  joinGame(p: Player) {
+    this.players.push(p)
+  }
+  resetBoard() {
+    this.board = new HexaBoard<GameHex>(4, 0, GameHex)
+    this.board.build()
+  }
+  serializeBoard() {
+    const boardStatus: tileInterface[] = this.board.hexes.map(hex => hex.serialize())
+    return boardStatus
+  }
+  removePlayer(id: string) {
+    Player.getById(id)?.remove()
+    this.players = this.players.filter(p => p.id != id)
+    this.board.hexes.filter(hex => hex.owner?.id == id).forEach(hex => hex.reset())
+  }
+  validateTurn(id:string){
+    let p = Player.getById(id)
+    if(p==this.getCurrentPlayer())
+    {return true}
+    return false
+  }
 }
