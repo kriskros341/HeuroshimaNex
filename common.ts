@@ -7,13 +7,26 @@ export enum TileBuild{
   base
 }
 
-export interface response<T> {
-  status: string
-  data?: T;
+export enum responseStatus {
+  OK = "OK",
+  NOPE = "NOPE"
 }
 
+export interface positiveResponse<T> {
+  status: responseStatus.OK
+  data: T
+}
+export interface negativeResponse {
+  status: responseStatus
+  reason: string
+}
+
+export type response<T> = 
+  positiveResponse<T> | negativeResponse
+
+
 export interface tileInterface {
-  ownerId: string | undefined
+  ownerId: string | null
   buildType: TileBuild
 }
 
@@ -23,17 +36,24 @@ export interface buildStructureInterface {
   playerId: string
 }
 
+export interface playerInterface {
+  id: string,
+  color: [number, number, number] | null
+}
+
+export type color = [number, number, number] | null
+
 export class GameHex extends Hex {
   isTaken: boolean = false
   tileBuild:TileBuild=TileBuild.free
-  owner: Player | undefined
+  owner: Player | null = null
   setOwner(player: Player) {
     this.owner = player
   }
   reset() {
     this.tileBuild = TileBuild.free
     this.isTaken = false
-    this.owner = undefined
+    this.owner = null
     this.clearOwner()
   }
   loadState(state: tileInterface) : void {
@@ -43,12 +63,12 @@ export class GameHex extends Hex {
   }
   serialize() : tileInterface {
     return {
-      ownerId: this.owner?.id,
+      ownerId: this.owner?.id || null,
       buildType: this.tileBuild
     }
   }
   clearOwner() {
-    this.owner = undefined
+    this.owner = null
   }
   isTargetted: boolean = false;
   constructor() {
@@ -67,14 +87,17 @@ const getRandomColor = (): [number, number, number] => {
   ]
 }
 
+const tempDefaultColor: [number, number, number] = [100, 100, 100]
+
 export class Player {
   static objects: Player[] = []
-  static getById(id?: string) {
-    return id ? Player.objects.find(player => player.id == id) : undefined
+  static getById(id: string | null) {
+    const player = Player.objects.find(player => player.id == id)
+    return player ? player : null
   }
-  color: [number, number, number] | undefined
+  color: color
   id: string
-  constructor(id: string, color?: [number, number, number]) {
+  constructor(id: string, color: color = null) {
     this.id = id
     this.color = color ? color : getRandomColor()
     Player.objects.push(this)
@@ -82,4 +105,20 @@ export class Player {
   setColor(value: [number, number, number]) {
     this.color = value
   }
+  serialize(): playerInterface {
+    return {id: this.id, color: this.color}
+  }
+  remove() {
+    Player.objects = Player.objects.filter(p => p.id != this.id)
+  }
+}
+
+
+class Game {
+  turn: number = 0
+  movingPlayer: number = 0
+  players: Player[] = []
+  constructor() {
+  }
+
 }

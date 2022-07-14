@@ -33,6 +33,15 @@ export class Grid<H extends Hex> extends Board<H> {
   } 
 }
 
+export const around = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [-1, 1],
+  [1, -1]
+]
+
 export class HexaBoard<H extends Hex> extends Board<H> {
   hexes: H[] = [];
   type: any
@@ -58,17 +67,31 @@ export class HexaBoard<H extends Hex> extends Board<H> {
       }
     }
   } 
+
+  select_hexes_diagonally = (t: vec2, options: {r:boolean, q:boolean, s:boolean} = {r: true, q: true, s: true}): Hex[] => {
+    return this.hexes.filter((t2) => (options.r && t2.coords.x == t.x) || (options.q && t2.coords.y == t.y) || (options.s && -t2.coords.x-t2.coords.y == -t.x - t.y))
+  }
+  select_hexes_around(coords: vec2): Hex[] {
+    let neighbours: vec2[] = around.map(v => ({x: v[0], y: v[1]}))
+    let tiles = this.hexes.filter(t => {
+      for(let n of neighbours) {
+        if (t.coords.x == coords.x + n.x && t.coords.y == coords.y + n.y) {
+          return true;
+        }
+      }
+      return false
+    })
+    return tiles
+  }
+
 }
 
 export class Hex {
-  static objects: Hex[] = []
   coords: {
     x: number,
     y: number
   } = {x: 0, y: 0}
-  constructor(...args: any[]) {
-    Hex.objects.push(this)
-  }
+  constructor(...args: any[]) {}
   //arrow function would get actually erased
   placeOnGrid(x: number, y: number) {
     this.coords = {
@@ -77,31 +100,3 @@ export class Hex {
     }
   }
 }
-
-
-export const select_hexes_diagonally = (t: vec2, options: {r:boolean, q:boolean, s:boolean} = {r: true, q: true, s: true}): Hex[] => {
-  return Hex.objects.filter((t2) => (options.r && t2.coords.x == t.x) || (options.q && t2.coords.y == t.y) || (options.s && -t2.coords.x-t2.coords.y == -t.x - t.y))
-}
-
-export const around = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [-1, 1],
-  [1, -1]
-]
-
-export function select_hexes_around(coords: vec2): Hex[] {
-  let neighbours: vec2[] = around.map(v => ({x: v[0], y: v[1]}))
-  let tiles = Hex.objects.filter(t => {
-    for(let n of neighbours) {
-      if (t.coords.x == coords.x + n.x && t.coords.y == coords.y + n.y) {
-        return true;
-      }
-    }
-    return false
-  })
-  return tiles
-}
-
