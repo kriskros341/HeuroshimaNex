@@ -1,13 +1,13 @@
-export type vec2 = {x: number, y:number}
-
+import {coords} from "../heuroshimanext/common"
 abstract class Board<H extends Hex> {
   abstract hexes: H[];
   constructor() {
 
   }
   abstract build(...args: any[]): void
-  getTileByCoords(coords: vec2) {
-    return this.hexes.find(hex => hex.coords.x == coords.x && hex.coords.y == coords.y)
+  getTileByCoords(coordinates: coords) {
+    console.log(coordinates, this.hexes)
+    return this.hexes.find(hex => hex.coords.x == coordinates.x && hex.coords.y == coordinates.y)
   }
 }
 
@@ -32,6 +32,7 @@ export class Grid<H extends Hex> extends Board<H> {
     }
   } 
 }
+export type { coords }
 
 export const around = [
   [1, 0],
@@ -68,11 +69,11 @@ export class HexaBoard<H extends Hex> extends Board<H> {
     }
   } 
 
-  select_hexes_diagonally = (t: vec2, options: {r:boolean, q:boolean, s:boolean} = {r: true, q: true, s: true}): Hex[] => {
+  select_hexes_diagonally = (t: coords, options: {r:boolean, q:boolean, s:boolean} = {r: true, q: true, s: true}): Hex[] => {
     return this.hexes.filter((t2) => (options.r && t2.coords.x == t.x) || (options.q && t2.coords.y == t.y) || (options.s && -t2.coords.x-t2.coords.y == -t.x - t.y))
   }
-  select_hexes_around(coords: vec2): Hex[] {
-    let neighbours: vec2[] = around.map(v => ({x: v[0], y: v[1]}))
+  select_hexes_around(coords: coords): Hex[] {
+    let neighbours: coords[] = around.map(v => ({x: v[0], y: v[1]}))
     let tiles = this.hexes.filter(t => {
       for(let n of neighbours) {
         if (t.coords.x == coords.x + n.x && t.coords.y == coords.y + n.y) {

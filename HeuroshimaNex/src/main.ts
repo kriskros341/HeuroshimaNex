@@ -61,6 +61,7 @@ function showBuildMenu(hex?:InteractiveVisualHex){
 function reset(){
   console.log("reset!")
   for(let h of board.hexes){
+    console.log(h.coordinates.x+" , ")
     h.reset()
     h.tileBuild=TileBuild.free
     h.updateColor()
