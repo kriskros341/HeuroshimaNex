@@ -66,6 +66,7 @@ export class Player {
     const player = Player.objects.find(player => player.id == id)
     return player ? player : null
   }
+  hand: CardInterface[] = []
   color: color
   id: string
   constructor(id: string, color: color = null) {
@@ -79,17 +80,25 @@ export class Player {
   serialize(): playerInterface {
     return {id: this.id, color: this.color}
   }
+
   remove() {
     Player.objects = Player.objects.filter(p => p.id != this.id)
   }
+
 }
 
+interface CardInterface {
+  text: string,
+  type: TileBuild
+}
 
 class Game {
   players: Player[] = []
   board: HexaBoard<GameHex>
   turn: number = 0
   usedPlayerMoves: number = 0
+  stage: number = 0
+
   constructor() {
     this.board = new HexaBoard<GameHex>(4, 0, GameHex)
     this.board.build()
@@ -130,6 +139,8 @@ class Game {
     this.board.build()
     this.turn=0
     this.usedPlayerMoves=0
+    this.stage = 0
+    this.players.forEach(p => p.hand = [])
   }
   serializeBoard() {
     const boardStatus: TileInterface[] = this.board.hexes.map(hex => hex.serialize())
@@ -205,10 +216,29 @@ export class NetworkGame extends Game {
   join(socket: Socket) {
     socket.join("players")
     const player = new Player(socket.id)
-    super.joinGame(player)
     const playerList = this.serializePlayers()
     socket.broadcast.emit("broad:player_list", playerList)
     socket.emit("broad:player_list", playerList)
+    super.joinGame(player)
     return responseFrom({color: player.color})
   }
 }
+/*
+  first, I want 
+  a client has cards on hand given to them by the server
+    what is the best moment to give these?
+    it would be when you use the start button
+      that appears if there are more than 0 players in game
+      later this will be delegated to lobby
+    
+
+  a base that can and has to be set in first turn
+    game has to be altered to include base stage, build stage,
+      client doesnt need to know anything about these
+    
+
+  unit that shoots 3 rows 
+  and obstacle that blocks shoots
+*/
+
+

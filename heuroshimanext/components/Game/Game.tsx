@@ -40,26 +40,19 @@ const translateColor = (c: [number, number, number]) => {
 
 
 const Hex: React.FC<HexProps> = ({hex, radius, height, isSelected, setSelected, texture, gridOffset = 0}) => {
-  const [doubly, setDoubly] = useState(false)
   const playerColor = useContext(PlayerContext).players.find(p => p.id == hex.ownerId)?.color
   const {setSelectMode} = useContext(PlayerContext)
   const getTileColor = () => 
-    isSelected ? doubly ? [1, 0, 0] : [1, 1, 1] : hex.buildType == TileBuild.free ? [1, 1, 1] : playerColor ? [playerColor[0]!/255, playerColor![1]/255, playerColor![2]/255] : [0, 0, 0] 
+    isSelected ? [1, 0, 0]  : hex.buildType == TileBuild.free ? [1, 1, 1] : playerColor ? [playerColor[0]!/255, playerColor![1]/255, playerColor![2]/255] : [0, 0, 0] 
   useEffect(() => {
-    if(isSelected) { 
-      setDoubly(false)
-    }
   }, [isSelected])
   return (
     <mesh
       onClick={(e) => {
         e.stopPropagation()
         setSelected()
-        setSelectMode(0)
       }}
       onDoubleClick={() => {
-        setDoubly(true)
-        setSelectMode(1)
       }}
       rotation={[Math.PI/2, 0, 0]}
       position={[(gridOffset + radius) * (Math.sqrt(3) *  hex.coords.x + Math.sqrt(3)/2 * hex.coords.y), (gridOffset+radius) * 3./2 * hex.coords.y, 0]}

@@ -2,8 +2,10 @@ import { Server, Socket } from "socket.io"
 import http from "http"
 import express from "express"
 import cors from "cors"
-import { responseStatus, color, coords, TileBuild, response, TileInterface, playerInterface, negativeResponse, positiveResponse} from "../heuroshimanext/common"
+import { responseStatus, color, LobbyInterface, coords, TileBuild, response, TileInterface, playerInterface, negativeResponse, positiveResponse} from "../heuroshimanext/common"
 import { responseFrom, NetworkGame } from "./classes"
+import {faker} from "@faker-js/faker"
+
 const app = express()
 
 app.use(cors({
@@ -25,8 +27,41 @@ const game = new NetworkGame()
 
 type callback<T> = (response: response<T>) => void
 
+const gameMap = new Map<string, NetworkGame>()
+
+
+const createTestPlayer = () => {
+  return {
+    id: faker.datatype.uuid(),
+    userName: faker.internet.userName(),
+    color: faker.color.rgb()
+  }
+}
+
+const createTestLobby = () => {
+  const userCount = Math.floor(Math.random() * 6)
+  return {
+    id: faker.datatype.uuid(),
+    players: Array.from({length: userCount}).map(v => createTestPlayer()),
+    maxPlayers: faker.datatype.number()
+  }
+}
+
+
+const lobbies: LobbyInterface[] =
+  Array.from({length: 6}).map(() => createTestLobby())
+
+
+  
 io.on("connection", async socket => {
+  //lobby
   socket.join("sockets")
+  socket.on("join_global_lobby", (callback: callback<LobbyInterface[]>) => {
+    socket.join("global_lobby")
+    callback(responseFrom(lobbies))
+  })
+
+  //game
   console.log("connected!", socket.id)
   socket.on("req:restart", (callback) => {
     console.log("restart game from", socket.id)

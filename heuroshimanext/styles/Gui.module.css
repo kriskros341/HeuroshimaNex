@@ -1,10 +1,24 @@
-.gui{
-     position: absolute;
+.guiContainer {
+  position: Fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+.guiContainer * {
+  pointer-events: all;
+}
+
+.gui {
+    position: absolute;
     background-color: grey;
     color: white;
     padding:8px;
     flex-grow:column wrap;
-    }
+}
+
 .hidden{
     visibility:none
 }
@@ -12,4 +26,36 @@
   display: inline-block;
   width: 10px;
   height: 10px
+}
+
+.hand {
+  position: absolute;
+  bottom: 0;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
+
+.deque {
+  position: relative;
+  border: 1px solid black;
+  padding: 0.5em;
+  display: flex;
+}
+
+.card {
+  margin-right: 3px;
+  margin-left: 3px;
+}
+
+.card {
+  border: 1px solid black;
+  height: 100px;
+  width: 80px;
+  background-color: wheat;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
 }
