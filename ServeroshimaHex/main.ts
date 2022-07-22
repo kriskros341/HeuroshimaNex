@@ -51,8 +51,6 @@ const createTestLobby = () => {
 const lobbies: LobbyInterface[] =
   Array.from({length: 6}).map(() => createTestLobby())
 
-
-  
 io.on("connection", async socket => {
   //lobby
   socket.join("sockets")
@@ -63,6 +61,11 @@ io.on("connection", async socket => {
 
   //game
   console.log("connected!", socket.id)
+  socket.on("req:start_game", () => {
+    console.log("started by", socket.id)
+    game.start(socket)
+    io.emit("broad:start_game")
+  })
   socket.on("req:restart", (callback) => {
     console.log("restart game from", socket.id)
     callback(game.reset(socket))

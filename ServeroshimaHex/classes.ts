@@ -66,7 +66,7 @@ export class Player {
     const player = Player.objects.find(player => player.id == id)
     return player ? player : null
   }
-  hand: CardInterface[] = []
+  hand: TileBuild[] = []
   color: color
   id: string
   constructor(id: string, color: color = null) {
@@ -87,17 +87,13 @@ export class Player {
 
 }
 
-interface CardInterface {
-  text: string,
-  type: TileBuild
-}
-
 class Game {
   players: Player[] = []
   board: HexaBoard<GameHex>
   turn: number = 0
   usedPlayerMoves: number = 0
   stage: number = 0
+  isStarted: boolean = false;
 
   constructor() {
     this.board = new HexaBoard<GameHex>(4, 0, GameHex)
@@ -109,9 +105,17 @@ class Game {
   nextTurn() {
     this.turn += 1
     this.usedPlayerMoves = 0
+    if(this.turn / this.players.length > 1) {
+      this.stage = 1
+    } 
+
   }
   nextMove() {
     this.usedPlayerMoves += 1
+  }
+  startGame() {
+    this.players.forEach(p => p.hand = [TileBuild.base])
+    this.isStarted = true
   }
   serializePlayers() {
     return this.players.map(p => p.serialize())
@@ -159,6 +163,9 @@ class Game {
     return true
   }
   checkForPlayerIssues(id: string) {
+    if(!this.isStarted) {
+      return "The game is not started!"
+    }
     if(!this.players.find(p => p.id == id)) {
       return "Create a player you stupid fuck!"
     }
@@ -184,6 +191,9 @@ export class NetworkGame extends Game {
   }
   constructor() {
     super()
+  }
+  start(socket: Socket) {
+    super.startGame()
   }
   broadNextTurn(socket: Socket) {
     if(!Player.getById(socket.id)) {
@@ -214,12 +224,15 @@ export class NetworkGame extends Game {
     this.synchState(socket)
   }
   join(socket: Socket) {
+    if(this.isStarted) {
+      return negative("The game has already started!")
+    }
     socket.join("players")
     const player = new Player(socket.id)
+    super.joinGame(player)
     const playerList = this.serializePlayers()
     socket.broadcast.emit("broad:player_list", playerList)
     socket.emit("broad:player_list", playerList)
-    super.joinGame(player)
     return responseFrom({color: player.color})
   }
 }
@@ -227,9 +240,7 @@ export class NetworkGame extends Game {
   first, I want 
   a client has cards on hand given to them by the server
     what is the best moment to give these?
-    it would be when you use the start button
-      that appears if there are more than 0 players in game
-      later this will be delegated to lobby
+    after first move lets block players from joining
     
 
   a base that can and has to be set in first turn
