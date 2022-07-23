@@ -1,6 +1,7 @@
 import { responseStatus, color, coords, TileBuild, response, TileInterface, playerInterface, negativeResponse, positiveResponse} from "../heuroshimanext/common"
 import { Server, Socket } from "socket.io"
 import {Hex, HexaBoard} from "./hex_toolkit"
+import { faker } from "@faker-js/faker"
 
 
 export const negative = (reason: string) => {
@@ -87,7 +88,7 @@ export class Player {
 
 }
 
-class Game {
+export class Game {
   players: Player[] = []
   board: HexaBoard<GameHex>
   turn: number = 0
@@ -110,7 +111,7 @@ class Game {
     } 
 
   }
-  nextMove() {
+  incrementMove() {
     this.usedPlayerMoves += 1
   }
   startGame() {
@@ -120,9 +121,8 @@ class Game {
   serializePlayers() {
     return this.players.map(p => p.serialize())
   }
-  buildStructure(playerId: string, tileCoords: coords, type: TileBuild): [TileInterface | null, string] {
+  build(playerId: string, tileCoords: coords, type: TileBuild): [TileInterface | null, string] {
     const tile = this.board.getTileByCoords(tileCoords)
-    console.log(tile)
     if(tile?.tileBuild != TileBuild.free)
       return [null, "The tile is not free!"]
     tile.build(type)
@@ -132,11 +132,13 @@ class Game {
       coords: tileCoords, 
       ownerId: playerId
     } as TileInterface
-    this.nextMove()
+    this.incrementMove()
     return [data, "nothing wrong here"]
   }
-  joinGame(p: Player) {
-    this.players.push(p)
+  createPlayer(playerId?: string) {
+    const player = new Player(playerId || faker.datatype.uuid())
+    this.players.push(player)
+    return player
   }
   resetBoard() {
     this.board = new HexaBoard<GameHex>(4, 0, GameHex)
@@ -177,14 +179,14 @@ class Game {
 }
 
 export class NetworkGame extends Game {
-  build(socket: Socket, tileCoords: coords, type: TileBuild) : response<TileInterface> {
+  buildStructure(socket: Socket, tileCoords: coords, type: TileBuild) : response<TileInterface> {
     const issue = this.checkForPlayerIssues(socket.id)
     if(issue)
       return negative(issue)
     if(this.usedPlayerMoves >= 2) {
       return negative("You ran out of moves dumbfuck!")
     }
-    const [data, error] = super.buildStructure(socket.id, tileCoords, type)
+    const [data, error] = super.build(socket.id, tileCoords, type)
     data && socket.broadcast.emit("broad:build", data)
     data && socket.emit("broad:build", data)
     return responseFrom(data, error)
@@ -227,9 +229,7 @@ export class NetworkGame extends Game {
     if(this.isStarted) {
       return negative("The game has already started!")
     }
-    socket.join("players")
-    const player = new Player(socket.id)
-    super.joinGame(player)
+    const player = super.createPlayer(socket.id)
     const playerList = this.serializePlayers()
     socket.broadcast.emit("broad:player_list", playerList)
     socket.emit("broad:player_list", playerList)

@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import React, { useContext, useEffect, useState } from 'react'
+import React, { FC, useContext, useEffect, useState } from 'react'
 import styles from '../../styles/Gui.module.css'
 import {response, color, playerInterface, TileInterface, TileBuild} from "../../common"
 import { PlayerContext, ConnectionContext, unwrap } from '../Contexts'
@@ -10,6 +10,9 @@ const TurnCounter: React.FC<{}> = () =>{
     <b>Turn:<span></span></b>
   )
 }
+
+
+
 
 const GamerList:React.FC<{showIf: boolean, turn: number, players: playerInterface[]}>=({showIf, turn, players})=> {
   const {thisPlayer} = useContext(PlayerContext)
@@ -64,32 +67,67 @@ const translateColor = (c: [number, number, number]) => {
   return c[0]*256 + c[1]*16 + c[2]
 }
 
+const PlayerIndicator: FC<{isMyMove: boolean}> = ({isMyMove}) => {
+  const connection = useContext(ConnectionContext)
+  const { thisPlayer, setPlayer } = useContext(PlayerContext)
+  const handleJoin = (resp: response<{color: color}>) => {
+    const response = unwrap(resp)
+    if(response) {
+      setPlayer({id: connection!.id, color: response.color})
+      connection?.emit("sync_players")
+    }
+  }
+  const join = () => connection?.emit("req:create_player", handleJoin)
+  if(!thisPlayer) {
+    return <MyButton fun={join}>join</MyButton>
+  }
+  return (
+    <span style={{color: isMyMove ? "green" : "white"}}>
+      Player ID: {thisPlayer?.id} 
+      <span 
+        style={{backgroundColor: `rgba(${thisPlayer.color![0]}, ${thisPlayer.color![1]}, ${thisPlayer.color![2]})`}} 
+        className={styles.colorIndicator} 
+      />
+    </span>
+  )
+}
+
+const ButtonList = () => {
+
+}
+
 const GUI: React.FC<{selectedTile:TileInterface|null}> = ({selectedTile}) => {
   const connection = useContext(ConnectionContext)
-  const {thisPlayer, setPlayer, refreshPlayerList, players, config} = useContext(PlayerContext)
+  const {thisPlayer, refreshPlayerList, players, config} = useContext(PlayerContext)
   const [turn, setTurn] = useState(0)
   const handleRestart = (response: response<{}>) => {
     const c = unwrap(response)
     c && refreshPlayerList()
   }
-  const handleJoin = (resp: response<{color: color}>) => {
+  const handleNextTurn = (resp:response<{}>)=>{
     const response = unwrap(resp)
-    response && setPlayer({id: connection!.id, color: response.color})
   }
-  const handleNextTurn = (resp:response<{turnNumber: number}>)=>{
-    const response = unwrap(resp)
-    response && setTurn(response.turnNumber)
+  const handleTurnBroadcast = ({currentPlayer, turnNumber}: {currentPlayer: string, turnNumber: number}) => {
+    setTurn(turnNumber)
   }
-  const broadSetTurn = (n: number) => {
-    setTurn(n)
+  const [isStarted, setStarted] = useState(false)
+  const broadStart = () => {
+    setStarted(true)
   }
+  const requestStartGame = (response: response<{}>) => {
+    unwrap(response)
+  }
+  const handleStartBtn = () => connection?.emit("req:start_game", requestStartGame)
   useEffect(() => {
-    connection?.on("broad:turn", broadSetTurn)
+    connection?.on("test", () => console.log("test!"))
+    connection?.on("broad:turn", handleTurnBroadcast)
+    connection?.on("broad:start_game", broadStart)
+    console.log(connection?.listeners("broad:start_game"))
     return () => {
-      connection?.removeListener("broad:turn", broadSetTurn)
+      connection?.off("broad:turn", handleTurnBroadcast)
+      connection?.off("broad:start_game", broadStart)
     }
   }, [connection])
-  const join = () => connection?.emit("req:create_player", handleJoin)
   const restart = () => connection?.emit("req:restart", handleRestart)
   const next_turn = () =>{
     console.log("Requested next turn")
@@ -101,22 +139,18 @@ const GUI: React.FC<{selectedTile:TileInterface|null}> = ({selectedTile}) => {
       <div className={styles.gui}>
         <div id="mainGui">GUIII<br />
         <b>Turn: {turn}</b><br />
-        {thisPlayer ? 
-          <span 
-            style={{color: isMyMove ? "green" : "white"}}
-          >Player ID: {thisPlayer?.id} 
-            <span 
-              style={{backgroundColor: `rgba(${thisPlayer.color![0]}, ${thisPlayer.color![1]}, ${thisPlayer.color![2]})`}} 
-              className={styles.colorIndicator}>
-            </span>
-          </span>
-          :
-          <MyButton fun={join}>join</MyButton>
-        }
+        <PlayerIndicator isMyMove={!!isMyMove}/>
         <GamerList showIf={players.length > 1} turn={turn} players={players}/>
-        <MyButton fun={restart}>restart</MyButton>
-        <MyButton fun={refreshPlayerList}>Debug</MyButton>
-        <MyButton fun={next_turn}>Next Turn</MyButton>
+        {
+          isStarted ? (
+            <>
+              <MyButton fun={restart}>restart</MyButton>
+              <MyButton fun={next_turn}>Next Turn</MyButton>
+            </>
+          ) : (
+            <MyButton fun={handleStartBtn}>Start</MyButton>
+          )
+        }
       </div>
         {selectedTile && <Stats selectedTile={selectedTile} />}
       </div>

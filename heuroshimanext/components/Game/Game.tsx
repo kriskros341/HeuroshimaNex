@@ -85,7 +85,12 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
       connection?.off("broad:build", refresh)
     }
   }, [connection?.active])
-  const textures = useLoader(TextureLoader, ["assets/empty.png", "assets/army.png", "assets/obstacle.png", "assets/base.png"])
+  const textures = useLoader(TextureLoader, [
+    "http://heuroshimanex.ddns.net:3000/assets/empty.png", 
+    "http://heuroshimanex.ddns.net:3000/assets/army.png", 
+    "http://heuroshimanex.ddns.net:3000/assets/obstacle.png", 
+    "http://heuroshimanex.ddns.net:3000/assets/base.png"
+  ])
   useEffect(() => {
     textures[1].center = new THREE.Vector2(0.5, 0.5)
     textures[1].repeat = new THREE.Vector2(1.5, 1.5)
@@ -138,7 +143,7 @@ const HexaBoard: React.FC<{radius: number, gridOffset: number, setCurrentHex: (v
   const setupBoard = () => {
     if(!connection)
       return
-    connection.emit("getBoard", (r: response<TileInterface[]>) => {
+    connection.emit("get_board", (r: response<TileInterface[]>) => {
       const response = unwrap(r)
       if(!response) {
         return
