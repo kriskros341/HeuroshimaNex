@@ -1,6 +1,6 @@
 import { createContext } from "react"
 import {Socket} from "socket.io-client"
-import { playerInterface } from "../common"
+import { PlayerInterface } from "../common"
 import { responseStatus, response, positiveResponse, negativeResponse } from "../common"
 
 export const ConnectionContext = createContext<Socket | null>(null)
@@ -10,11 +10,8 @@ export interface Config {
 }
 
 export interface PlayerContext {
-  thisPlayer: playerInterface | null,
-  config: Config,
-  setSelectMode: (v: number) => void,
-  setPlayer: (p: playerInterface) => void, 
-  players: playerInterface[],
+  thisPlayer: PlayerInterface | null,
+  players: PlayerInterface[],
   refreshPlayerList: () => void
 }
 export function unwrap<T>(response: response<T>, handler?: (reason: negativeResponse) => void) {
@@ -27,10 +24,7 @@ export function unwrap<T>(response: response<T>, handler?: (reason: negativeResp
 export const PlayerContext = createContext<PlayerContext>(
   {
     thisPlayer: null, 
-    setPlayer: () => {}, 
     players: [], 
     refreshPlayerList: () => {}, 
-    config: {selectMode: 0},
-    setSelectMode: (v) => {}
   }
 )

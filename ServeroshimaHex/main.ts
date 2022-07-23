@@ -2,29 +2,15 @@ import { Event, Server, Socket } from "socket.io"
 import http from "http"
 import express from "express"
 import cors from "cors"
-import { responseStatus, color, LobbyInterface, coords, TileBuild, response, TileInterface, playerInterface, negativeResponse, positiveResponse} from "../heuroshimanext/common"
-import { responseFrom, NetworkGame, Game, negative } from "./classes"
+import { responseStatus, color, LobbyInterface, coords, response, TileInterface, PlayerInterface, negativeResponse, positiveResponse, GameOptions, TurnMessageInterface} from "../heuroshimanext/common"
+import { responseFrom, Game, positive, negative, Player } from "./classes"
 import {faker} from "@faker-js/faker"
 import { DefaultEventsMap } from "socket.io/dist/typed-events"
-
+import { EntityType, TileEntity } from "../heuroshimanext/unitTypes"
+import { Ok, Err, Result } from "../heuroshimanext/RustlikeTypes"
 
 type callback<T> = (response: response<T>) => void
 
-
-type direction = 0 | 1 | 2 | 3 | 4 | 5
-type initiative = 0 | 1 | 2
-
-interface Action {
-  type: "meele" | "attact" | "block"
-  direction: direction
-}
-
-interface TileCreature {
-  name: string
-  rotation: direction
-  initiative: initiative
-  actions: Action[]
-}
 
 
 
@@ -69,12 +55,6 @@ class NetworkGameRouter {
 
 const gameRouter = new NetworkGameRouter()
 
-//Rust-like algebraic types <3
-type OK<T> = {_tag: "Ok", ok?: T}
-type Err<E> = {_tag: "Err", err: E}
-const Ok = <T, E>(ok?: T): Result<T, E> => ({_tag: "Ok", ok})
-const Err = <T, E>(err: E): Result<T, E> => ({_tag: "Err", err})
-type Result<T, E> = OK<T> | Err<E>
 
 //it is responsible for communication between sockets and game
 class NetworkGameFacade {
@@ -90,37 +70,54 @@ class NetworkGameFacade {
   getPlayerById(id: string) {
     return this.game.players.find(p => p.id == id)
   }
+  serializeGame() {
+    return {
+      id: this.id,
+      stage: this.game.stage,
+    } as GameOptions
+  }
   serializePlayers() {
     return this.game.serializePlayers()
   }
   serializeBoard() {
     return this.game.serializeBoard()
   }
-  nextTurn(socket: MySocket): Result<number, string> {
+  nextTurn(socket: MySocket): Result<TurnMessageInterface, string> {
     if(!this.getPlayerById(socket.id)) {
       return Err("create a player!")
     }
     if(this.getPlayerById(socket.id) != this.game.getCurrentPlayer()) {
       return Err("not your turn")
     }
-    this.game.nextTurn()
-    return Ok()
+    const turnData = this.game.nextTurn()
+    return Ok(turnData)
   }
   join(socket: Socket) {
     socket.join("players")
     const player= this.game.createPlayer(socket.id)
     return responseFrom({color: player.color})
   }
-  build(socket: Socket, tileCoords: coords, type: TileBuild) {
+  build(socket: Socket, tileCoords: coords, type: EntityType): Result<TileInterface, string> {
     const issues = this.game.checkForPlayerIssues(socket.id)
     if(issues)
-      return negative(issues)
+      return Err(issues)
     if(this.game.usedPlayerMoves >= 2)
-      return negative("ran out of moves!")
-    const [data, error] = this.game.build(socket.id, tileCoords, type)
-    data && socket.broadcast.emit("broad:build", data)
-    data && socket.emit("broad:build", data)
-    return responseFrom(data, error)
+      return Err("ran out of moves!")
+    const player = this.game.getCurrentPlayer()
+    if(!player.basePlaced) {
+      if(type != EntityType.Base)
+        return Err("must place base first!")
+    } else {
+      if(type == EntityType.Base) {
+        return Err("You may only have one base!")
+      }
+    }
+    player.basePlaced = true
+    const result = this.game.build(socket.id, tileCoords, type)
+    if(result._tag == "Err") {
+      return Err(result.err)
+    }
+    return Ok(result.ok!)
   }
   reset(socket: Socket) {
     this.game.resetBoard()
@@ -165,6 +162,17 @@ type socketMiddleware = ([endpoint, ...args]: Event, next: (err?: Error) => any)
 
 gameNamespace.on("connection", async (socket: MySocket) => {
   socket.use(([endpoint, ...args], next) => {
+    const exclude = [
+      "req:subscribe",
+      //"sync_board",
+      //"sync_players",
+      //"get_board"
+    ]
+    if(socket.game || exclude.includes(endpoint))
+      next()
+    next(new Error("The game doesn't exist!"))
+  })
+  socket.use(([endpoint, ...args], next) => {
     console.log(`game request on ${endpoint} from ${socket.game?.id}/${socket.id}`)
     next()
   })
@@ -183,7 +191,7 @@ gameNamespace.on("connection", async (socket: MySocket) => {
     socket.join(gameId)
     socket.game = gameFacade
     console.log(`${socket.id} joined ${gameId}`)
-    callback(responseFrom({}))
+    callback(responseFrom(gameFacade.serializeGame()))
   })
   socket.on("req:start_game", (callback: callback<{}>) => {
     socket.game!.start()
@@ -191,24 +199,32 @@ gameNamespace.on("connection", async (socket: MySocket) => {
     callback(responseFrom({}))
   })
   socket.on("get_board", (callback: callback<TileInterface[]>) => {
-    callback(responseFrom(socket.game!.game.serializeBoard(), "failed to serialize board"))
+    const board = gameRouter.get(socket.game?.id || "")?.serializeBoard()
+    callback(responseFrom(board, "failed to serialize board"))
   })
   socket.on("sync_board", () => {
-    const board = socket.game!.game.serializeBoard()
+    const board = socket.game?.serializeBoard()
     gameNamespace.to(socket.game!.id).emit("broad:board", board)
   })
   socket.on("sync_players", () => {
-    const players = socket.game!.game.serializePlayers()
+    const players = socket.game!.serializePlayers()
     gameNamespace.to(socket.game!.id).emit("broad:sync_players", players)
   })
   socket.on("req:create_player", (callback: callback<{color: color}>) => {
+    if(socket.game!.getPlayerById(socket.id)) {
+      return callback(negative("player already exists"))
+    }
     const player = socket.game!.join(socket)
     const players = socket.game!.game.serializePlayers()
     gameNamespace.to(socket.game!.id).emit("broad:sync_players", players)
     callback(player)
   })
-  socket.on("req:build", (tileCoords: coords, type: TileBuild, callback: callback<TileInterface>) => {
-    callback(socket.game!.build(socket, tileCoords, type))
+  socket.on("req:build", (tileCoords: coords, type: EntityType, callback: callback<TileInterface>) => {
+    const data = socket.game!.build(socket, tileCoords, type)
+    if(data._tag == "Err")
+      return callback(negative(data.err))
+    gameNamespace.to(socket.game!.id).emit("broad:build", data.ok)
+    callback(positive())
   })
   socket.on("req:turn", (callback: callback<{}>) => {
     const result = socket.game!.nextTurn(socket)
@@ -216,10 +232,12 @@ gameNamespace.on("connection", async (socket: MySocket) => {
       return negative(result.err)
     }
     const toBeSent = {
-      currentPlayer: result.ok!, 
+      currentStage: socket.game!.game.stage,
       turnNumber: socket.game!.game.turn
     }
+    const players = socket.game!.serializePlayers()
     gameNamespace.to(socket.game!.id).emit("broad:turn", toBeSent)
+    gameNamespace.to(socket.game!.id).emit("broad:sync_players", players)
     return callback(responseFrom({}))
   })
   socket.on("disconnect", () => {

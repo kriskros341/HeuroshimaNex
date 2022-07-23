@@ -4,7 +4,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { useContext, useEffect, useState } from 'react'
 import styles from '../../styles/Game.module.css'
-import {response, color, playerInterface, TileInterface, TileBuild} from "../../common"
+import {response, color, PlayerInterface, TileInterface, GameOptions} from "../../common"
 import { io, Socket } from 'socket.io-client'
 import { PlayerContext, ConnectionContext, unwrap, Config } from '../../components/Contexts'
 import GUI from "../../components/Game/GUI"
@@ -20,21 +20,36 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   return {props: {gameId: context?.params?.gameId}}
 }
 
+
+
 const G: NextPage<{gameId: number}> = ({gameId}) => {
+  const [gameOptions, setGameOptions] = useState<GameOptions>()
   const [selected, setSelected]=useState<TileInterface | null>(null)
-  const [player, setPlayer] = useState<playerInterface | null>(null)
-  const [config, setConfig] = useState<Config>({selectMode: 0})
-  const [players, setPlayers] = useState<playerInterface[]>([])
+  const [player, setPlayer] = useState<PlayerInterface | null>(null)
+  const [players, setPlayers] = useState<PlayerInterface[]>([])
+  
   const connection = useSocket(`ws://heuroshimanex.ddns.net:8000/game`)
+  const handleSetPlayerList = (data: PlayerInterface[]) => {
+    setPlayers(data)
+    setPlayer(data?.find(p => p.id == connection?.id) || null)
+  }
+  const handleRefreshPlayerList = (response: response<PlayerInterface[]>) => {
+    const data = unwrap(response)
+    data && handleSetPlayerList(data)
+  }
+  console.log(player)
+  const refreshPlayerList = () => {
+    connection && connection.emit("sync_players", (d: response<PlayerInterface[]>) => handleRefreshPlayerList(d))
+  }
   useEffect(() => {
     const onConnect = () => console.log("connected!")
-
     if(connection) {
       connection.on("connect", onConnect)
-      connection.on("broad:player_list", setPlayers)
-      connection.on("broad:sync_players", setPlayers)
-      connection.emit("req:subscribe", gameId, (d: any) => {
-        console.log("req:subscribe", d)
+      connection.on("broad:player_list", handleSetPlayerList)
+      connection.on("broad:sync_players", handleSetPlayerList)
+      connection.emit("req:subscribe", gameId, (response: response<GameOptions>) => {
+        const data = unwrap(response)
+        data && setGameOptions(data)
       })
       refreshPlayerList()
     }
@@ -44,21 +59,8 @@ const G: NextPage<{gameId: number}> = ({gameId}) => {
       connection?.off("broad:sync_players", setPlayers)
     }
   }, [connection])
-  const handlePlayerList = (response: response<playerInterface[]>) => {
-    const data = unwrap(response)
-    data && setPlayers(data)
-    if(!players.map(p => p.id).includes(player?.id || "")) {
-      setPlayer(null)
-    }
-  }
-  const refreshPlayerList = () => {
-    connection && connection.emit("sync_players", (d: response<playerInterface[]>) => handlePlayerList(d))
-  }
   const playerContext = {
     thisPlayer: player, 
-    config: config,
-    setSelectMode:(n: number) => setConfig(v => ({...v, selectMode: n})),
-    setPlayer: (p: playerInterface) => setPlayer(p), 
     players: players,
     refreshPlayerList: refreshPlayerList
   }

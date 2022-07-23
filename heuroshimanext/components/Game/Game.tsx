@@ -1,13 +1,14 @@
-import { Canvas, MeshProps, useFrame, useThree } from "@react-three/fiber"
+import { Canvas, MeshProps, useFrame, useThree, Vector2 } from "@react-three/fiber"
 import * as THREE from "three"
 import { useState, useEffect, useContext, useMemo, memo, useCallback } from "react"
-import { response, coords, playerInterface, TileBuild, TileInterface, color } from "../../common"
+import { response, coords, PlayerInterface, TileInterface, color } from "../../common"
 import { PlayerContext, ConnectionContext, unwrap } from "../Contexts"
 import { Socket } from "socket.io-client"
 import z from "zod"
 
-import { TextureLoader } from "three"
-import { useLoader } from "@react-three/fiber"
+import { Texture, TextureLoader } from "three"
+import { useTexture } from "@react-three/drei"
+import { EntityType } from "../../unitTypes"
 
 
 
@@ -27,40 +28,51 @@ const enum HexState{
   doubly=0x00ff00
 }
 
-const colorMap = new Map<TileBuild, number>()
-colorMap.set(TileBuild.free, HexState.default)
-colorMap.set(TileBuild.army, 0xff0000)
-colorMap.set(TileBuild.base, 0x00ff00)
-colorMap.set(TileBuild.obstacle, 0x0000ff)
-
-const translateColor = (c: [number, number, number]) => {
-  return c[0]*256 + c[1]*16 + c[2]
-}
-
-
-
 const Hex: React.FC<HexProps> = ({hex, radius, height, isSelected, setSelected, texture, gridOffset = 0}) => {
   const playerColor = useContext(PlayerContext).players.find(p => p.id == hex.ownerId)?.color
-  const {setSelectMode} = useContext(PlayerContext)
   const getTileColor = () => 
-    isSelected ? [1, 0, 0]  : hex.buildType == TileBuild.free ? [1, 1, 1] : playerColor ? [playerColor[0]!/255, playerColor![1]/255, playerColor![2]/255] : [0, 0, 0] 
+    isSelected ? [1, 0, 0]  : hex.tileEntity == null ? [1, 1, 1] : playerColor ? [playerColor[0]!/255, playerColor![1]/255, playerColor![2]/255] : [0, 0, 0] 
   useEffect(() => {
   }, [isSelected])
+  const position = new THREE.Vector3((gridOffset + radius) * (Math.sqrt(3) *  hex.coords.x + Math.sqrt(3)/2 * hex.coords.y), (gridOffset+radius) * 3./2 * hex.coords.y, 0)
+  const rotationFromAxis = Math.PI/6
+  const [rotation, setRotation] = useState(0)
+  texture.rotation = 5*Math.PI/6 + rotation * Math.PI/3 + rotationFromAxis
+  const tileColor = playerColor ? (playerColor[0]/255) * 256 + (playerColor[1]/255) * 16 + (playerColor[2]/255) : 0xffffff
   return (
-    <mesh
-      onClick={(e) => {
-        e.stopPropagation()
-        setSelected()
-      }}
-      onDoubleClick={() => {
-      }}
-      rotation={[Math.PI/2, 0, 0]}
-      position={[(gridOffset + radius) * (Math.sqrt(3) *  hex.coords.x + Math.sqrt(3)/2 * hex.coords.y), (gridOffset+radius) * 3./2 * hex.coords.y, 0]}
-    >
-      
-      <meshStandardMaterial color={new THREE.Color(...getTileColor())} map={texture}></meshStandardMaterial>
-      <cylinderGeometry args={[radius, radius, height, 6, 1]} />
-    </mesh>
+    <>
+      <mesh
+        onClick={(e) => {
+          e.stopPropagation()
+          setSelected()
+        }}
+        onPointerMove={(e) => {
+          const pointOnHex = e.point.sub(position)
+          const angleFromCenter = 
+            Math.atan2(pointOnHex.y, pointOnHex.x) + rotationFromAxis
+          const partOfHex = 
+            THREE.MathUtils.euclideanModulo((angleFromCenter) / (2 * Math.PI) * 6, 6)
+          const floored = Math.floor(partOfHex)
+          if(floored != rotation) {
+            isSelected && setRotation(floored)
+          }
+        }}
+        rotation={[Math.PI/2, 0, 0]}
+        position={position}
+      >
+        <meshStandardMaterial color={tileColor} map={texture}></meshStandardMaterial>
+        <cylinderGeometry args={[radius, radius, height, 6, 1]} />
+      </mesh>
+      {isSelected && (
+        <mesh
+          position={position}
+          rotation={[0, 0, rotationFromAxis]}
+        >
+          <ringBufferGeometry args={[radius, radius + 0.1, 6]}/>
+          <meshStandardMaterial color={0xff00000} />
+        </mesh>
+      )}
+    </>
   )
 }
 
@@ -85,22 +97,27 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
       connection?.off("broad:build", refresh)
     }
   }, [connection?.active])
-  const textures = useLoader(TextureLoader, [
-    "http://heuroshimanex.ddns.net:3000/assets/empty.png", 
-    "http://heuroshimanex.ddns.net:3000/assets/army.png", 
-    "http://heuroshimanex.ddns.net:3000/assets/obstacle.png", 
-    "http://heuroshimanex.ddns.net:3000/assets/base.png"
-  ])
+  const empty = useTexture("http://heuroshimanex.ddns.net:3000/assets/empty.png")
+    
+  const textures = useTexture<Record<EntityType, string>>({
+    Base: "http://heuroshimanex.ddns.net:3000/assets/base.png",
+    Solider: "http://heuroshimanex.ddns.net:3000/assets/army.png",
+    Barricade: "http://heuroshimanex.ddns.net:3000/assets/obstacle.png", 
+    Knight: "http://heuroshimanex.ddns.net:3000/assets/sword.png",
+  })
   useEffect(() => {
-    textures[1].center = new THREE.Vector2(0.5, 0.5)
-    textures[1].repeat = new THREE.Vector2(1.5, 1.5)
-    textures[1].rotation = Math.PI/2
-    textures[2].center = new THREE.Vector2(0.5, 0.5)
-    textures[2].repeat = new THREE.Vector2(1.5, 1.5)
-    textures[2].rotation = Math.PI/2
-    textures[3].center = new THREE.Vector2(0.5, 0.5)
-    textures[3].repeat = new THREE.Vector2(1.5, 1.5)
-    textures[3].rotation = Math.PI/2
+    textures[EntityType.Solider].center = new THREE.Vector2(0.5, 0.5)
+    textures[EntityType.Solider].repeat = new THREE.Vector2(1.5, 1.5)
+    textures[EntityType.Solider].rotation = Math.PI/2
+    textures[EntityType.Barricade].center = new THREE.Vector2(0.5, 0.5)
+    textures[EntityType.Barricade].repeat = new THREE.Vector2(1.5, 1.5)
+    textures[EntityType.Barricade].rotation = Math.PI/2
+    textures[EntityType.Knight].center = new THREE.Vector2(0.5, 0.5)
+    textures[EntityType.Knight].repeat = new THREE.Vector2(1.5, 1.5)
+    textures[EntityType.Knight].rotation = Math.PI/2
+    textures[EntityType.Base].center = new THREE.Vector2(0.5, 0.5)
+    textures[EntityType.Base].repeat = new THREE.Vector2(1.5, 1.5)
+    textures[EntityType.Base].rotation = Math.PI/2
   }, [])
   return (
     <>
@@ -122,7 +139,7 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
             radius={1} 
             height={0.1} 
             gridOffset={gridOffset}
-            texture={textures[tile.buildType]}
+            texture={tile.tileEntity ? textures[tile.tileEntity.type].clone() : empty }
             isSelected={idx == hexId}
             setSelected={() => {
               setHex(idx)
@@ -136,7 +153,7 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
   )
 }
 
-const HexaBoard: React.FC<{radius: number, gridOffset: number, setCurrentHex: (v:TileInterface|null) => void}> = ({gridOffset, setCurrentHex}) => {
+const HexaBoard: React.FC<{gridOffset: number, setCurrentHex: (v:TileInterface|null) => void}> = ({gridOffset, setCurrentHex}) => {
   const [hexes, setHexes] = useState<(TileInterface)[]>([])
   const [boardReady, setBoardReady] = useState(false)
   const connection = useContext(ConnectionContext)
@@ -193,7 +210,7 @@ const Game: React.FC<{pickHex: (v:TileInterface|null) => void, playerContext: Pl
         <PlayerContext.Provider value={playerContext}>
           <ambientLight />
           <pointLight intensity={0.4} position={[10, 10, 10]} />
-          <HexaBoard radius={4} gridOffset={0.2} setCurrentHex={(v: TileInterface | null) => {pickHex(v)}} />  
+          <HexaBoard gridOffset={0.2} setCurrentHex={(v: TileInterface | null) => {pickHex(v)}} />  
         </PlayerContext.Provider>
       </ConnectionContext.Provider>       
       </Canvas>

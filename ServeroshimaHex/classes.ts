@@ -1,16 +1,22 @@
-import { responseStatus, color, coords, TileBuild, response, TileInterface, playerInterface, negativeResponse, positiveResponse} from "../heuroshimanext/common"
+import { responseStatus, color, coords, response, TileInterface, PlayerInterface, negativeResponse, positiveResponse, Stage, TurnMessageInterface} from "../heuroshimanext/common"
 import { Server, Socket } from "socket.io"
 import {Hex, HexaBoard} from "./hex_toolkit"
 import { faker } from "@faker-js/faker"
+import { EntityType, TileEntity, UnitList } from "../heuroshimanext/unitTypes"
+import { Err, Ok, Result } from "../heuroshimanext/RustlikeTypes"
 
 
 export const negative = (reason: string) => {
   return {status: responseStatus.NOPE, reason: reason} as negativeResponse
 }
 
+export const positive = <T>(data?: T) => {
+  return {status: responseStatus.OK, data: data} as positiveResponse<T>
+}
+
 export function responseFrom<T>(data: T | null = null, reason: string = "No reason provided"): response<T> {
   if(data) {
-    return {status: responseStatus.OK, data: data} as positiveResponse<T>
+    return positive(data)
   }
   console.warn(reason)
   return negative(reason)
@@ -27,26 +33,26 @@ const getRandomColor = (): [number, number, number] => {
 export class GameHex extends Hex {
   isTargetted: boolean = false;
   isTaken: boolean = false
-  tileBuild:TileBuild=TileBuild.free
   owner: Player | null = null
+  tileEntity: TileEntity | null = null
   setOwner(player: Player) {
     this.owner = player
   }
   reset() {
-    this.tileBuild = TileBuild.free
+    this.tileEntity = null
     this.isTaken = false
     this.owner = null
     this.clearOwner()
   }
   loadState(state: TileInterface) : void {
     this.owner = Player.getById(state.ownerId)
-    this.tileBuild = state.buildType
-    this.isTaken = state.buildType == TileBuild.free ? false : true
+    this.tileEntity = state.tileEntity
+    this.isTaken = state.tileEntity == null ? false : true
   }
   serialize() : TileInterface {
     return {
       ownerId: this.owner?.id || null,
-      buildType: this.tileBuild,
+      tileEntity: this.tileEntity,
       coords: this.coords
     }
   }
@@ -56,18 +62,19 @@ export class GameHex extends Hex {
   constructor() {
     super()
   }
-  build(type:TileBuild) {
-      this.tileBuild=type
+  build(entity: TileEntity) {
+    this.tileEntity = entity
   }
 }
 
 export class Player {
   static objects: Player[] = []
+  basePlaced: boolean = false
   static getById(id: string | null) {
     const player = Player.objects.find(player => player.id == id)
     return player ? player : null
   }
-  hand: TileBuild[] = []
+  hand: EntityType[] = []
   color: color
   id: string
   constructor(id: string, color: color = null) {
@@ -78,7 +85,7 @@ export class Player {
   setColor(value: [number, number, number]) {
     this.color = value
   }
-  serialize(): playerInterface {
+  serialize() {
     return {id: this.id, color: this.color}
   }
 
@@ -97,43 +104,50 @@ export class Game {
   isStarted: boolean = false;
 
   constructor() {
-    this.board = new HexaBoard<GameHex>(4, 0, GameHex)
+    this.board = new HexaBoard<GameHex>(2, 0, GameHex)
     this.board.build()
   }
   getCurrentPlayer() {
     return this.players[this.turn % this.players.length]
   }
-  nextTurn() {
+  nextTurn(): TurnMessageInterface {
     this.turn += 1
     this.usedPlayerMoves = 0
     if(this.turn / this.players.length > 1) {
-      this.stage = 1
+      this.stage = Stage.proper
     } 
-
+    return {currentStage: this.stage, turnNumber: this.turn}
   }
   incrementMove() {
     this.usedPlayerMoves += 1
   }
   startGame() {
-    this.players.forEach(p => p.hand = [TileBuild.base])
+    this.players.forEach(p => p.hand = [EntityType.Base])
     this.isStarted = true
+    this.stage = Stage.base_placement
   }
-  serializePlayers() {
-    return this.players.map(p => p.serialize())
+  serializePlayers(): PlayerInterface[] {
+    return this.players.map(p => ({...p.serialize(), isTurn: p.id == this.getCurrentPlayer().id}))
   }
-  build(playerId: string, tileCoords: coords, type: TileBuild): [TileInterface | null, string] {
+  build(playerId: string, tileCoords: coords, type: EntityType): Result<TileInterface, string> {
     const tile = this.board.getTileByCoords(tileCoords)
-    if(tile?.tileBuild != TileBuild.free)
-      return [null, "The tile is not free!"]
-    tile.build(type)
+    if(!tile) {
+      return Err("No such tile!")
+    }
+    if(tile.tileEntity != null)
+      return Err("The tile is not free!")
+    if(type == EntityType.Base) {
+      this.getCurrentPlayer().basePlaced = true
+    }
+    tile.build(UnitList[type])
     tile.setOwner(Player.getById(playerId)!)
     const data = {
-      buildType: type, 
+      tileEntity: tile.tileEntity, 
       coords: tileCoords, 
       ownerId: playerId
-    } as TileInterface
+    }
     this.incrementMove()
-    return [data, "nothing wrong here"]
+    return Ok(data)
   }
   createPlayer(playerId?: string) {
     const player = new Player(playerId || faker.datatype.uuid())
@@ -141,7 +155,7 @@ export class Game {
     return player
   }
   resetBoard() {
-    this.board = new HexaBoard<GameHex>(4, 0, GameHex)
+    this.board = new HexaBoard<GameHex>(2, 0, GameHex)
     this.board.build()
     this.turn=0
     this.usedPlayerMoves=0
@@ -178,64 +192,6 @@ export class Game {
   }
 }
 
-export class NetworkGame extends Game {
-  buildStructure(socket: Socket, tileCoords: coords, type: TileBuild) : response<TileInterface> {
-    const issue = this.checkForPlayerIssues(socket.id)
-    if(issue)
-      return negative(issue)
-    if(this.usedPlayerMoves >= 2) {
-      return negative("You ran out of moves dumbfuck!")
-    }
-    const [data, error] = super.build(socket.id, tileCoords, type)
-    data && socket.broadcast.emit("broad:build", data)
-    data && socket.emit("broad:build", data)
-    return responseFrom(data, error)
-  }
-  constructor() {
-    super()
-  }
-  start(socket: Socket) {
-    super.startGame()
-  }
-  broadNextTurn(socket: Socket) {
-    if(!Player.getById(socket.id)) {
-      return negative("Create player you stupid fuck")
-    }
-    if(Player.getById(socket.id) != this.getCurrentPlayer()) {
-      return negative("Not your fucking turn bitch!")
-    }
-    this.nextTurn()
-    const toBeSent = {turnNumber: this.turn}
-    socket.broadcast.emit("broad:turn", toBeSent.turnNumber)
-    return responseFrom(toBeSent)
-  }
-  reset(socket: Socket) {
-    super.resetBoard()
-    socket.broadcast.emit("broad:restart")
-    socket.emit("broad:restart")
-    return { status: "OK" }
-  }
-  synchState(socket: Socket) {
-    const boardStatus = this.serializeBoard()
-    const playerList = this.serializePlayers()
-    socket.broadcast.emit("broad:player_list", playerList)
-    socket.broadcast.emit("broad:board", boardStatus)
-  }
-  disconnectPlayer(socket: Socket) {
-    this.removePlayer(socket.id)
-    this.synchState(socket)
-  }
-  join(socket: Socket) {
-    if(this.isStarted) {
-      return negative("The game has already started!")
-    }
-    const player = super.createPlayer(socket.id)
-    const playerList = this.serializePlayers()
-    socket.broadcast.emit("broad:player_list", playerList)
-    socket.emit("broad:player_list", playerList)
-    return responseFrom({color: player.color})
-  }
-}
 /*
   first, I want 
   a client has cards on hand given to them by the server

@@ -1,9 +1,10 @@
 import Image from 'next/image'
 import React, { FC, useContext, useEffect, useState } from 'react'
 import styles from '../../styles/Gui.module.css'
-import {response, color, playerInterface, TileInterface, TileBuild} from "../../common"
+import {response, color, PlayerInterface, TileInterface} from "../../common"
 import { PlayerContext, ConnectionContext, unwrap } from '../Contexts'
 import { Socket } from 'socket.io-client'
+import { EntityType, TileEntity } from '../../unitTypes'
 
 const TurnCounter: React.FC<{}> = () =>{
   return(
@@ -14,7 +15,7 @@ const TurnCounter: React.FC<{}> = () =>{
 
 
 
-const GamerList:React.FC<{showIf: boolean, turn: number, players: playerInterface[]}>=({showIf, turn, players})=> {
+const GamerList:React.FC<{showIf: boolean, turn: number, players: PlayerInterface[]}>=({showIf, turn, players})=> {
   const {thisPlayer} = useContext(PlayerContext)
   if(!showIf) {
     return <div>you are alone.</div>
@@ -39,18 +40,12 @@ const GamerList:React.FC<{showIf: boolean, turn: number, players: playerInterfac
   )
 }
 
-const map = new Map<TileBuild,string>();
-map.set(TileBuild.free,"Free")
-map.set(TileBuild.army,"Army")
-map.set(TileBuild.obstacle,"Obstacle")
-map.set(TileBuild.base,"Base")
-
 
 const Stats: React.FC<{selectedTile:TileInterface}>=({selectedTile})=> {
   return(
     <div className="hidden">
       Tile selected: {selectedTile.coords.x}, {selectedTile.coords.y}<br />
-      current state: <span id="tileStatus">{map.get(selectedTile.buildType)}</span><br />
+      current state: <span id="tileStatus">{selectedTile.tileEntity?.type || "Free"}</span><br />
       owner: <span>{selectedTile.ownerId}</span><br />
     </div> 
   )
@@ -69,15 +64,12 @@ const translateColor = (c: [number, number, number]) => {
 
 const PlayerIndicator: FC<{isMyMove: boolean}> = ({isMyMove}) => {
   const connection = useContext(ConnectionContext)
-  const { thisPlayer, setPlayer } = useContext(PlayerContext)
-  const handleJoin = (resp: response<{color: color}>) => {
+  const { thisPlayer, refreshPlayerList } = useContext(PlayerContext)
+  const handleCreate = (resp: response<{color: color}>) => {
     const response = unwrap(resp)
-    if(response) {
-      setPlayer({id: connection!.id, color: response.color})
-      connection?.emit("sync_players")
-    }
+    response && refreshPlayerList()
   }
-  const join = () => connection?.emit("req:create_player", handleJoin)
+  const join = () => connection?.emit("req:create_player", handleCreate)
   if(!thisPlayer) {
     return <MyButton fun={join}>join</MyButton>
   }
@@ -98,7 +90,7 @@ const ButtonList = () => {
 
 const GUI: React.FC<{selectedTile:TileInterface|null}> = ({selectedTile}) => {
   const connection = useContext(ConnectionContext)
-  const {thisPlayer, refreshPlayerList, players, config} = useContext(PlayerContext)
+  const {thisPlayer, refreshPlayerList, players} = useContext(PlayerContext)
   const [turn, setTurn] = useState(0)
   const handleRestart = (response: response<{}>) => {
     const c = unwrap(response)
@@ -133,14 +125,14 @@ const GUI: React.FC<{selectedTile:TileInterface|null}> = ({selectedTile}) => {
     console.log("Requested next turn")
     connection?.emit("req:turn", handleNextTurn)
   }
-  const isMyMove = thisPlayer && players[turn % players.length]?.id == thisPlayer.id
+  const isMyMove = thisPlayer?.isTurn || false
   return (
     <div className={styles.guiContainer}>
       <div className={styles.gui}>
         <div id="mainGui">GUIII<br />
         <b>Turn: {turn}</b><br />
         <PlayerIndicator isMyMove={!!isMyMove}/>
-        <GamerList showIf={players.length > 1} turn={turn} players={players}/>
+        <GamerList showIf={players.length > 0} turn={turn} players={players}/>
         {
           isStarted ? (
             <>
@@ -159,7 +151,7 @@ const GUI: React.FC<{selectedTile:TileInterface|null}> = ({selectedTile}) => {
   )
 }
 const Hand: React.FC<{connection: Socket | null, selectedTile: TileInterface | null}> = ({selectedTile, connection}) => {
-  const build = (type: TileBuild) => {
+  const build = (type: EntityType) => {
     connection?.emit("req:build", selectedTile?.coords, type, (data: response<TileInterface>) => {
       unwrap(data)
     })
@@ -167,9 +159,10 @@ const Hand: React.FC<{connection: Socket | null, selectedTile: TileInterface | n
   return (
     <div className={styles.hand}>
       <Deque isActive={!!selectedTile}>
-        <Card onClick={() => build(TileBuild.army)}>army</Card>
-        <Card onClick={() => build(TileBuild.obstacle)}>obstacle</Card>
-        <Card onClick={() => build(TileBuild.base)}>base</Card>
+        <Card onClick={() => build(EntityType.Solider)}>Solider</Card>
+        <Card onClick={() => build(EntityType.Barricade)}>Barricade</Card>
+        <Card onClick={() => build(EntityType.Knight)}>Knight</Card>
+        <Card onClick={() => build(EntityType.Base)}>Base</Card>
       </Deque>
     </div>
   )

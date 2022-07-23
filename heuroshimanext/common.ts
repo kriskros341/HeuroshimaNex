@@ -1,9 +1,4 @@
-export enum TileBuild{
-  free = 0,
-  army,
-  obstacle,
-  base
-}
+import { TileEntity } from "./unitTypes"
 
 export enum responseStatus {
   OK = "OK",
@@ -28,16 +23,17 @@ export type response<T> =
 export type coords = {x: number, y: number}
 export interface TileInterface {
   ownerId: string | null
-  buildType: TileBuild
+  tileEntity: TileEntity | null
   coords: coords
 }
 
 
 export type color = [number, number, number] | null
 
-export interface playerInterface {
+export interface PlayerInterface {
   id: string,
   color: color
+  isTurn: boolean
 }
 
 export interface LobbyInterface {
@@ -50,4 +46,21 @@ export interface LobbyPlayerInterface {
   id: string,
   userName: string,
   color: any
+}
+
+export enum Stage {
+  waiting,
+  base_placement,
+  proper
+}
+
+export interface GameOptions {
+  id: string,
+  isStarted: boolean,
+  stage: Stage
+}
+
+export interface TurnMessageInterface {
+  currentStage: number
+  turnNumber: number
 }
