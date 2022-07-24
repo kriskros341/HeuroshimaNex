@@ -4,9 +4,9 @@ export type direction = 0 | 1 | 2 | 3 | 4 | 5
 export type initiative = 0 | 1 | 2 | 3
 
 export enum ActionType {
-  meele,
-  ranged,
-  block
+  meele = "meele",
+  ranged = "ranged",
+  block = "block"
 }
 
 export interface Action {
@@ -30,7 +30,8 @@ export enum EntityType {
   Base = "Base"
 }
 
-type EntityTypeKeys = keyof typeof EntityType
+export type EntityTypeKeys = keyof typeof EntityType
+export type ActionTypeKeys = keyof typeof ActionType
 
 export type UnitListInterface = {
   [key in EntityTypeKeys]: TileEntity
