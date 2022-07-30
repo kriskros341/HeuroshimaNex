@@ -5,8 +5,7 @@ import cors from "cors"
 import { responseStatus, color, LobbyInterface, coords, response, TileInterface, PlayerInterface, negativeResponse, positiveResponse, GameOptions, TurnMessageInterface} from "../heuroshimanext/common"
 import { responseFrom, Game, positive, negative, Player } from "./classes"
 import {faker} from "@faker-js/faker"
-import { DefaultEventsMap } from "socket.io/dist/typed-events"
-import { EntityType, TileEntity } from "../heuroshimanext/unitTypes"
+import { EntityType, TileEntity, direction } from "../heuroshimanext/unitTypes"
 import { Ok, Err, Result } from "../heuroshimanext/RustlikeTypes"
 
 type callback<T> = (response: response<T>) => void
@@ -97,6 +96,21 @@ class NetworkGameFacade {
     const player= this.game.createPlayer(socket.id)
     return responseFrom({color: player.color})
   }
+  //unused
+  rotateEntity(socket: Socket, coords: coords, direction: direction): Result<{}, string> {
+    const tile = this.game.board.getTileByCoords(coords)
+    if(!tile) {
+      return Err("rotation: no such tile");
+    }
+    if(!tile.tileEntity) {
+      return Err("rotation: no entity on tile");
+    }
+    if(tile.owner?.id != socket.id) {
+      return Err("rotation: you dont own this entity dumbfucrk");
+    } 
+    tile.tileEntity.rotation = direction
+    return Ok({})
+  }
   build(socket: Socket, tileCoords: coords, type: EntityType): Result<TileInterface, string> {
     const issues = this.game.checkForPlayerIssues(socket.id)
     if(issues)
@@ -164,9 +178,6 @@ gameNamespace.on("connection", async (socket: MySocket) => {
   socket.use(([endpoint, ...args], next) => {
     const exclude = [
       "req:subscribe",
-      //"sync_board",
-      //"sync_players",
-      //"get_board"
     ]
     if(socket.game || exclude.includes(endpoint))
       next()
@@ -219,12 +230,28 @@ gameNamespace.on("connection", async (socket: MySocket) => {
     gameNamespace.to(socket.game!.id).emit("broad:sync_players", players)
     callback(player)
   })
-  socket.on("req:build", (tileCoords: coords, type: EntityType, callback: callback<TileInterface>) => {
+  socket.on("req:build", (tileCoords: coords, type: EntityType, rotation: direction, callback: callback<TileInterface>) => {
     const data = socket.game!.build(socket, tileCoords, type)
     if(data._tag == "Err")
       return callback(negative(data.err))
     gameNamespace.to(socket.game!.id).emit("broad:build", data.ok)
     callback(positive())
+  })
+  socket.on("req:rotate", (tileCoords, rotation, callback: callback<{}>) => {
+    const tile = socket.game!.game.board.getTileByCoords(tileCoords)
+    if(!tile) {
+      return
+    }
+    if(!tile.tileEntity) {
+      return
+    }
+    if(tile.owner?.id != socket.id) {
+      return
+    }
+    tile.tileEntity.rotation = rotation
+
+    const board = socket.game?.serializeBoard()
+    gameNamespace.to(socket.game!.id).emit("broad:rotate", board)
   })
   socket.on("req:turn", (callback: callback<{}>) => {
     const result = socket.game!.nextTurn(socket)
@@ -263,66 +290,6 @@ io.of("/game_list").on("connection", async socket => {
 
   })
 })
-/*
-io.on("connection", async socket => {
-  //lobby
-  socket.join("sockets")
-  socket.on("join_global_lobby", (callback: callback<LobbyInterface[]>) => {
-    socket.join("global_lobby")
-    callback(responseFrom(lobbies))
-  })
-
-  socket.on("req:join", (gameId: string, callback: callback<{}>) => {
-    const game = gameRouter.get(gameId)
-    if(!game) {
-      callback(negative("the game doesn't exist!"))
-    }
-    console.log(`${socket.id} joined ${gameId}`)
-    socket.join(gameId)
-    callback(responseFrom({}))
-  })
-  //game
-  console.log("connected!", socket.id)
-  socket.on("req:start_game", () => {
-    console.log("started by", socket.id)
-    game.start()
-    io.emit("broad:start_game")
-  })
-  socket.on("req:restart", (callback) => {
-    console.log("restart game from", socket.id)
-    callback(game.reset(socket))
-  })
-  socket.on("req:create_player", (callback: callback<{color: color}>) => {
-    console.log("create player from", socket.id)
-    callback(game.join(socket))
-  })
-  socket.on("req:turn", (callback) => {
-    console.log("Requesting turn number...")
-    callback(game.broadNextTurn(socket))
-  })
-  socket.on("req:player_list", (callback: callback<playerInterface[]>) => {
-    console.log(game.game.serializePlayers())
-    callback(responseFrom(game.game.serializePlayers(), "failed to serialize players"))
-  })
-  socket.on("getBoard", (callback: callback<TileInterface[]>) => {
-    console.log("get board state from", socket.id)
-    callback(responseFrom(game.game.serializeBoard(), "failed to serialize board"))
-  })
-  socket.on("req:build", (tileCoords: coords, type: TileBuild, callback: callback<TileInterface>) => {
-    console.log("build structure from", socket.id, "on", tileCoords, "type: ", type)
-    callback(game.build(socket, tileCoords, type))
-  })
-  socket.on("disconnect", () => {
-    console.log("dc from", socket.id)
-    game.disconnectPlayer(socket)
-    game.getPlayers().length == 0 && game.game.resetBoard()
-  })
-  socket.on("test", () => {
-    console.log("test from", socket.id)
-    socket.emit("test")
-  })
-})
-*/
 
 process.on("exit", () => {
   io.to("sockets").emit("broad:restart")

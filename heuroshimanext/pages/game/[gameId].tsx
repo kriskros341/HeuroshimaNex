@@ -4,14 +4,14 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { useContext, useEffect, useState } from 'react'
 import styles from '../../styles/Game.module.css'
-import {response, color, PlayerInterface, TileInterface, GameOptions} from "../../common"
+import {response, color, PlayerInterface, TileInterface, GameOptions, SelectedTileUnit} from "../../common"
 import { io, Socket } from 'socket.io-client'
 import { PlayerContext, ConnectionContext, unwrap, Config } from '../../components/Contexts'
 import GUI from "../../components/Game/GUI"
 import { useSocket } from '../../components/Connection'
 import { GetServerSideProps } from 'next'
 
-const Game = dynamic(() => import("../../components/Game/Game"), {
+const Game: any = dynamic(() => import("../../components/Game/Game"), {
   ssr: false,
   loading: () => <div className={styles.loadingStyle}>LOADING</div>
 })
@@ -21,10 +21,9 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 }
 
 
-
 const G: NextPage<{gameId: number}> = ({gameId}) => {
   const [gameOptions, setGameOptions] = useState<GameOptions>()
-  const [selected, setSelected]=useState<TileInterface | null>(null)
+  const [selected, setSelected]=useState<SelectedTileUnit | null>(null)
   const [player, setPlayer] = useState<PlayerInterface | null>(null)
   const [players, setPlayers] = useState<PlayerInterface[]>([])
   
@@ -62,8 +61,11 @@ const G: NextPage<{gameId: number}> = ({gameId}) => {
   const playerContext = {
     thisPlayer: player, 
     players: players,
-    refreshPlayerList: refreshPlayerList
+    refreshPlayerList: refreshPlayerList,
+    displayedTile: selected,
+    setDisplayedTile: (v: SelectedTileUnit | null) => setSelected(v)
   }
+    
   return (
     <div className={styles.container}>
       <Head>
@@ -74,8 +76,8 @@ const G: NextPage<{gameId: number}> = ({gameId}) => {
         {connection && 
           <Game 
             connection={connection} 
-            pickHex={(v: TileInterface | null) => setSelected(v)} 
             playerContext={playerContext!} 
+            pickHex={(v: SelectedTileUnit | null) => setSelected(v)}
           />
         }
         <ConnectionContext.Provider value={connection}>

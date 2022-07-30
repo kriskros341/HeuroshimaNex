@@ -1,4 +1,3 @@
-import { AnimationAction } from "three"
 
 export type direction = 0 | 1 | 2 | 3 | 4 | 5
 export type initiative = 0 | 1 | 2 | 3
@@ -12,6 +11,12 @@ export enum ActionType {
 export interface Action {
   type: ActionType
   direction: direction
+}
+
+
+export interface BuildCommand {
+  rotation: direction,
+  type: EntityType
 }
 
 export interface TileEntity {
@@ -42,7 +47,14 @@ export const UnitList: UnitListInterface = {
     rotation: 0,
     initiative: 0,
     health: Infinity,
-    actions: [],
+    actions: [
+      {type: ActionType.meele, direction: 0},
+      {type: ActionType.meele, direction: 1},
+      {type: ActionType.meele, direction: 2},
+      {type: ActionType.meele, direction: 3},
+      {type: ActionType.meele, direction: 4},
+      {type: ActionType.meele, direction: 5},
+    ],
     type: EntityType.Base
   },
   Solider: {

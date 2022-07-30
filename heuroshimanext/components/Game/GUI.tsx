@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import React, { FC, useContext, useEffect, useState } from 'react'
 import styles from '../../styles/Gui.module.css'
-import {response, color, PlayerInterface, TileInterface} from "../../common"
+import {response, color, PlayerInterface, TileInterface, SelectedTileUnit} from "../../common"
 import { PlayerContext, ConnectionContext, unwrap } from '../Contexts'
 import { Socket } from 'socket.io-client'
 import { EntityType, TileEntity } from '../../unitTypes'
@@ -88,7 +88,7 @@ const ButtonList = () => {
 
 }
 
-const GUI: React.FC<{selectedTile:TileInterface|null}> = ({selectedTile}) => {
+const GUI: React.FC<{selectedTile:SelectedTileUnit|null}> = ({selectedTile}) => {
   const connection = useContext(ConnectionContext)
   const {thisPlayer, refreshPlayerList, players} = useContext(PlayerContext)
   const [turn, setTurn] = useState(0)
@@ -150,9 +150,9 @@ const GUI: React.FC<{selectedTile:TileInterface|null}> = ({selectedTile}) => {
     </div>
   )
 }
-const Hand: React.FC<{connection: Socket | null, selectedTile: TileInterface | null}> = ({selectedTile, connection}) => {
+const Hand: React.FC<{connection: Socket | null, selectedTile: SelectedTileUnit | null}> = ({selectedTile, connection}) => {
   const build = (type: EntityType) => {
-    connection?.emit("req:build", selectedTile?.coords, type, (data: response<TileInterface>) => {
+    connection?.emit("req:build", selectedTile?.coords, type, selectedTile?.rotation, (data: response<TileInterface>) => {
       unwrap(data)
     })
   }

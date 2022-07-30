@@ -139,7 +139,7 @@ export class Game {
     if(type == EntityType.Base) {
       this.getCurrentPlayer().basePlaced = true
     }
-    tile.build(UnitList[type])
+    tile.build({...UnitList[type]}) // reference!??!?!
     tile.setOwner(Player.getById(playerId)!)
     const data = {
       tileEntity: tile.tileEntity, 

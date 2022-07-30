@@ -6,7 +6,6 @@ abstract class Board<H extends Hex> {
   }
   abstract build(...args: any[]): void
   getTileByCoords(coordinates: coords) {
-    console.log(coordinates, this.hexes)
     return this.hexes.find(hex => hex.coords.x == coordinates.x && hex.coords.y == coordinates.y)
   }
 }

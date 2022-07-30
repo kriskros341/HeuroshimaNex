@@ -1,4 +1,4 @@
-import { TileEntity } from "./unitTypes"
+import { direction, TileEntity } from "./unitTypes"
 
 export enum responseStatus {
   OK = "OK",
@@ -21,12 +21,16 @@ export type response<T> =
 
 
 export type coords = {x: number, y: number}
+
 export interface TileInterface {
   ownerId: string | null
   tileEntity: TileEntity | null
   coords: coords
 }
 
+export interface SelectedTileUnit extends TileInterface {
+  rotation: direction
+}
 
 export type color = [number, number, number] | null
 
@@ -64,3 +68,4 @@ export interface TurnMessageInterface {
   currentStage: number
   turnNumber: number
 }
+
