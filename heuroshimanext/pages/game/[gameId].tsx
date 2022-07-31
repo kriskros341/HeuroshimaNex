@@ -92,19 +92,7 @@ const G: NextPage<{gameId: number}> = ({gameId}) => {
 /*
   TODO:
   talia kart
-  - lista graczy
-        -> kółko z kolorem gracza
-        -> zaznaczenie naszej nazwy
-    Next Targets:
-      - Tury
-        -> gracz turowy może klikać, nikt inny (done)
-        -. gracz turowy jest zaznaczony jakoś
-        -> Turn counter jest widoczny
-      - Guziki roziwjają Menu z większą ilością wyborów (3 różne jednostki armii, itp.)
-      - jakieś zasoby dla gracza aby był limit postawień rzeczy
-      - dalsza logika
-      - przeczytać wreszcie zasady gry XD
-
+  - attack mechanic
 */
 
 export default G

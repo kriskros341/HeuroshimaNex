@@ -153,16 +153,24 @@ const GUI: React.FC<{selectedTile:SelectedTileUnit|null}> = ({selectedTile}) => 
 const Hand: React.FC<{connection: Socket | null, selectedTile: SelectedTileUnit | null}> = ({selectedTile, connection}) => {
   const build = (type: EntityType) => {
     connection?.emit("req:build", selectedTile?.coords, type, selectedTile?.rotation, (data: response<TileInterface>) => {
-      unwrap(data)
+      const response = unwrap(data)
+      response && setBasePlaced(true)
     })
   }
+  const [isBasePlaced, setBasePlaced] = useState(false)
   return (
     <div className={styles.hand}>
       <Deque isActive={!!selectedTile}>
-        <Card onClick={() => build(EntityType.Solider)}>Solider</Card>
-        <Card onClick={() => build(EntityType.Barricade)}>Barricade</Card>
-        <Card onClick={() => build(EntityType.Knight)}>Knight</Card>
-        <Card onClick={() => build(EntityType.Base)}>Base</Card>
+        {isBasePlaced ?
+          <>
+            <Card onClick={() => build(EntityType.Solider)}>Solider</Card>
+            <Card onClick={() => build(EntityType.Barricade)}>Barricade</Card>
+            <Card onClick={() => build(EntityType.Knight)}>Knight</Card>
+            <Card onClick={() => build(EntityType.Sniper)}>Sniper</Card>
+          </>
+        :
+          <Card onClick={() => build(EntityType.Base)}>Base</Card>
+        }
       </Deque>
     </div>
   )
@@ -176,7 +184,7 @@ const Card: React.FC<{onClick: () => void, children: string}> = ({onClick, child
   )
 }
 
-const Deque: React.FC<{children?: React.ReactNode[], isActive: boolean}> = ({children, isActive}) => {
+const Deque: React.FC<{children?: React.ReactElement<any, any>, isActive: boolean}> = ({children, isActive}) => {
   const dequeStyle = isActive ? {} : {
     bottom: -20
   }

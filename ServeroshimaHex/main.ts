@@ -115,6 +115,9 @@ class NetworkGameFacade {
     const issues = this.game.checkForPlayerIssues(socket.id)
     if(issues)
       return Err(issues)
+    if(!tileCoords) {
+      return Err("No tile selected!")
+    }
     if(this.game.usedPlayerMoves >= 2)
       return Err("ran out of moves!")
     const player = this.game.getCurrentPlayer()

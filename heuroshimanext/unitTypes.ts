@@ -5,7 +5,8 @@ export type initiative = 0 | 1 | 2 | 3
 export enum ActionType {
   meele = "meele",
   ranged = "ranged",
-  block = "block"
+  block = "block",
+  piercing = "piercing"
 }
 
 export interface Action {
@@ -32,7 +33,8 @@ export enum EntityType {
   Solider = "Solider",
   Barricade = "Barricade",
   Knight = "Knight",
-  Base = "Base"
+  Base = "Base",
+  Sniper = "Sniper"
 }
 
 export type EntityTypeKeys = keyof typeof EntityType
@@ -62,7 +64,8 @@ export const UnitList: UnitListInterface = {
     initiative: 2,
     health: 2,
     actions: [
-      {type: ActionType.ranged, direction: 0} 
+      {type: ActionType.ranged, direction: 0},
+      {type: ActionType.meele, direction: 1} 
     ],
     type: EntityType.Solider
   },
@@ -85,5 +88,12 @@ export const UnitList: UnitListInterface = {
       {type: ActionType.meele, direction: 0}
     ],
     type: EntityType.Knight
+  },
+  Sniper: {
+    rotation: 0,
+    initiative: 0,
+    health: 1,
+    actions: [{type: ActionType.piercing, direction: 0}],
+    type: EntityType.Sniper
   }
 }
