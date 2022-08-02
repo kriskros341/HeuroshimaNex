@@ -1,11 +1,11 @@
 import { Canvas } from "@react-three/fiber"
 import * as THREE from "three"
 import { useState, useEffect, useContext } from "react"
-import { response, TileInterface } from "../../common"
+import { coords, response, SelectedTileUnit, TileInterface } from "../../common"
 import { PlayerContext, ConnectionContext, unwrap } from "../Contexts"
 import { Socket } from "socket.io-client"
 import { Vector2, Vector3 } from "three"
-import { useTexture } from "@react-three/drei"
+import { useTexture, Html } from "@react-three/drei"
 import { EntityType, UnitList, ActionTypeKeys, direction, ActionType } from "../../unitTypes"
 
 const HexSideCount = 6
@@ -18,7 +18,7 @@ type HexProps = {
   }
   isSelected: boolean
   isHighlighted: boolean
-  toggleSelected: () => void
+  setSelected: (v: SelectedTileUnit) => void
   texture: THREE.Texture
 }
 
@@ -29,6 +29,7 @@ interface ActionIndicator {
 
 interface HexActionIndicator extends Partial<ActionIndicator> {
   position: THREE.Vector3, 
+  action: ActionType,
   hexRadius: number, 
   rotation: number, 
 }
@@ -42,6 +43,13 @@ const directionToHex: Record<number, [number, number]> = {
   5: [1, -1],
 }
 
+const actionToColor: Record<ActionTypeKeys, number> = {
+  "block": 0xFFFFFF,
+  "meele": 0xFF0000,
+  "piercing": 0xFF00FF,
+  "ranged": 0xCC0055,
+}
+
 const rotationMatrix = (angle: number) => {
   const c = new THREE.Matrix3()
   c.fromArray([
@@ -53,7 +61,7 @@ const rotationMatrix = (angle: number) => {
 }  
 // height is represented as a portion of distance to side
 // width is represented as a portion of length of side
-const ActionIndicator: React.FC<HexActionIndicator> = ({position, hexRadius, rotation = 0, height = 1, portionOfSide = 1}) => {
+const ActionIndicator: React.FC<HexActionIndicator> = ({position, hexRadius, action, rotation = 0, height = 1, portionOfSide = 1}) => {
   const distanceToBorder = hexRadius * Math.cos(Math.PI/6)
   const correctedHeight = hexRadius * height * Math.cos(Math.PI/6)
   const v1 = new Vector2(- correctedHeight + distanceToBorder, 0)
@@ -65,10 +73,11 @@ const ActionIndicator: React.FC<HexActionIndicator> = ({position, hexRadius, rot
   v2.applyMatrix3(rotationMatrix(rotation * Math.PI/3)).add(positionVector)
   v3.applyMatrix3(rotationMatrix(rotation * Math.PI/3)).add(positionVector)
   const triangleShape = new THREE.Shape([v1, v2, v3])
+
   return (
       <mesh position={[0, 0, 0.05]}>
-        <shapeBufferGeometry attach="geometry" args={[triangleShape]} />
-        <meshBasicMaterial attach="material" color={'#FF0000'} />
+        <shapeBufferGeometry args={[triangleShape]} />
+        <meshBasicMaterial color={actionToColor[action]} />
       </mesh>
   )
 }
@@ -118,23 +127,25 @@ const SelectionIndicatior: React.FC<{hexPosition: Vector3, hexRadius: number}> =
   )
 }
 
-const Hex: React.FC<HexProps> = ({isHighlighted, hex, isSelected, toggleSelected, texture, style: {radius, gridOffset, height}}) => {
+const Hex: React.FC<HexProps> = ({isHighlighted, hex, isSelected, setSelected, texture, style: {radius, gridOffset, height}}) => {
+  let rotation: direction = hex.tileEntity?.rotation || 0
   const playerColor = useContext(PlayerContext).players.find(p => p.id == hex.ownerId)?.color
   const {setDisplayedTile} = useContext(PlayerContext)
   const entityType = hex.tileEntity?.type || null
   useEffect(() => {
-    setEntityStats(entityType ? {...UnitList[entityType]} : null)
+    select()
   }, [entityType])
+  useEffect(() => {
+    isSelected && setDisplayedTile({...hex, rotation: rotation})
+  }, [rotation])
   const position = new THREE.Vector3((gridOffset + radius) * (Math.sqrt(3) *  hex.coords.x + Math.sqrt(3)/2 * hex.coords.y), (gridOffset+radius) * 3./2 * hex.coords.y, 0)
-  let rotation: direction = hex.tileEntity?.rotation || 0
   const tileColor = playerColor ? 
     rgbToHex(...playerColor) : 0xffffff
   const [entityStats, setEntityStats] = 
     useState(entityType ? UnitList[entityType] : null)  
-  
   const select = () => {
     setDisplayedTile({...hex, rotation: rotation})
-    toggleSelected()
+    setEntityStats(entityType ? {...UnitList[entityType]} : null)
   }
   const connection = useContext(ConnectionContext)
   const rotate = (newRotation: direction) => {
@@ -148,6 +159,7 @@ const Hex: React.FC<HexProps> = ({isHighlighted, hex, isSelected, toggleSelected
         onClick={(e) => {
           e.stopPropagation()
           select()
+          setSelected({...hex, rotation: rotation})
         }}
         onPointerMove={(e) => {
           const pointOnHex = e.point.sub(position)
@@ -163,25 +175,17 @@ const Hex: React.FC<HexProps> = ({isHighlighted, hex, isSelected, toggleSelected
         rotation={[Math.PI/2, 0, 0]}
         position={position}
       >
-        <meshStandardMaterial 
-          color={isHighlighted ? 0xff0000 : tileColor} 
-          map={texture}
-        />
-        <cylinderGeometry 
-          args={[radius, radius, height, HexSideCount, 1]} 
-        />
+        <meshStandardMaterial color={isHighlighted ? 0xff0000 : tileColor} map={texture} />
+        <cylinderGeometry args={[radius, radius, height, HexSideCount, 1]} />
       </mesh>
-      {isSelected && 
-        <SelectionIndicatior 
-          hexPosition={position} 
-          hexRadius={radius}
-        />
-      }
+      {isSelected && <SelectionIndicatior hexPosition={position} hexRadius={radius} />}
+      {entityStats?.health && <Html style={{color: "orange"}} position={position.clone().sub(new Vector3(0.2, 1.5, 0))}>{entityStats.health}</Html>}
       {entityStats && entityStats.actions.map((stats, idx) => {
         return (
           <ActionIndicator 
             key={`${hex.coords.x}_${hex.coords.y}_${idx}`}
-            position={position} 
+            position={position}
+            action={stats.type}
             hexRadius={radius}
             rotation={rotation + stats.direction}
             {...IndicatorOptions[stats.type]}
@@ -191,15 +195,93 @@ const Hex: React.FC<HexProps> = ({isHighlighted, hex, isSelected, toggleSelected
   )
 }
 
+const useHighlights = (hexes: TileInterface[]) => {
+  const [selection, setSelection] = useState<SelectedTileUnit | null>()
+  const directions = selection?.tileEntity ? 
+    selection.tileEntity.actions.map(action => 
+      ({
+        direction: directionToHex[(action.direction + selection.rotation) % HexSideCount],
+        actionType: action.type
+      })) 
+    : []
+  const selectArea = (radius: number) => {
+    if(!selection?.coords) {
+      return []
+    }
+    let temp = []
+    for(let n = -radius; n <= radius; n++) {
+      for(let m = Math.max(-radius, -n-radius); m <= Math.min(radius, -n+radius); m++) {
+        let hex = hexes.find(hex => hex.coords.x == n + selection.coords.x && hex.coords.y == m + selection.coords.y)
+        hex && temp.push(hex)
+      }
+    }
+    console.log(temp)
+    return temp
+  }
+  const selectHexesDiagonally = (xOffset: number, yOffset: number, passThrough: boolean = false) => {
+    let temp = []
+    //imperative so much simpler here
+    for(let n = 1; n < 5; n++) {
+      const c = hexes.find(hex => 
+        hex.coords.x == selection!.coords.x + xOffset * n &&
+        hex.coords.y == selection!.coords.y + yOffset * n
+      )
+      if(c?.tileEntity?.actions.find(action => 
+        selection?.tileEntity?.actions.some(a =>
+          action.type == ActionType.block && 
+          a.direction + selection!.tileEntity!.rotation == THREE.MathUtils.euclideanModulo(action.direction + c!.tileEntity!.rotation - 3, HexSideCount)
+        )
+      )) {
+        break;
+      }
+      if(!c) {
+        break
+      }
+      c && temp.push(c)
+      if(!passThrough && c?.tileEntity) {
+        break
+      }
+    }
+    return temp
+  }
+
+  const highlights = directions.flatMap(({direction: [xOffset, yOffset], actionType}) => {
+    if(actionType == ActionType.ranged) {
+      return selectHexesDiagonally(xOffset, yOffset).map(c => c.coords)
+    } 
+    if(actionType == ActionType.piercing) {
+      return selectHexesDiagonally(xOffset, yOffset, true).map(c => c.coords)
+    } 
+    else {
+      return hexes.filter(h => 
+        h.coords.x == selection!.coords.x + xOffset &&
+        h.coords.y == selection!.coords.y + yOffset
+      ).map(c => c.coords)
+    }
+  })
+  console.log(highlights)
+  const h2 = selectArea(1).map(c => c.coords)
+  return [h2, (v: SelectedTileUnit | null) => setSelection(v)] as [coords[], (v: SelectedTileUnit | null) => void]
+}
+
+
 const distances = [1, 2, 3, 4, 5]
 const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileInterface[], gridOffset: number}> = ({gridOffset, hexes, refreshBoard}) => {
   const [hexId, setHex] = useState<number | null>(null)
   const connection = useContext(ConnectionContext)
   const {setDisplayedTile, displayedTile} = useContext(PlayerContext)
+  const [highlights, setSelectedHex] = useHighlights(hexes)
+
   useEffect(() => {
-    connection?.on("broad:build", refreshBoard)
+    setSelectedHex(displayedTile)
+  }, [displayedTile])
+  const b = () => {
+    refreshBoard()
+  }
+  useEffect(() => {
+    connection?.on("broad:build", b)
     return () => {
-      connection?.off("broad:build", refreshBoard)
+      connection?.off("broad:build", b)
     }
   }, [connection?.active])
   const empty = useTexture("http://heuroshimanex.ddns.net:3000/assets/empty.png")
@@ -226,43 +308,6 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
     textures[EntityType.Base].repeat = new THREE.Vector2(1.5, 1.5)
     textures[EntityType.Base].rotation = defaultTextureRotation
   }, [])
-  const directions = displayedTile?.tileEntity ? 
-    displayedTile.tileEntity.actions.map(action => 
-      ({
-        direction: directionToHex[(action.direction + displayedTile.rotation) % HexSideCount],
-        actionType: action.type
-      })) 
-    : []
-  const selectHexesDiagonally = (xOffset: number, yOffset: number, passThrough: boolean = false) => {
-    let temp = []
-    //imperative so much simpler here
-    for(let n of distances) {
-      const c = hexes.find(hex => 
-        hex.coords.x == displayedTile!.coords.x + xOffset * n &&
-        hex.coords.y == displayedTile!.coords.y + yOffset * n
-      )
-      c && temp.push(c)
-      if(!passThrough && c?.tileEntity) {
-        break
-      }
-    }
-    return temp
-  }
-  const highlights = directions.flatMap(({direction: [xOffset, yOffset], actionType}) => {
-    if(actionType == ActionType.ranged) {
-      return selectHexesDiagonally(xOffset, yOffset).map(c => c.coords)
-    } 
-    if(actionType == ActionType.piercing) {
-      return selectHexesDiagonally(xOffset, yOffset, true).map(c => c.coords)
-    } 
-    else {
-      return hexes.filter(h => 
-        h.coords.x == displayedTile!.coords.x + xOffset &&
-        h.coords.y == displayedTile!.coords.y + yOffset
-      ).map(c => c.coords)
-    }
-  })
-  console.log(highlights)
   return (
     <>
       <mesh
@@ -293,8 +338,9 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
                 tile.coords.y == coord?.y
               )
             }
-            toggleSelected={() => {
+            setSelected={(v: SelectedTileUnit) => {
               setHex(hexId == idx ? null : idx)
+              setSelectedHex(v)
             }
             }
           />
@@ -323,7 +369,6 @@ const HexaBoard: React.FC<{gridOffset: number}> = ({gridOffset}) => {
   }
   const rotate = (resp: TileInterface[]) => {
     setBoardReady(false)
-    console.log("jd")
     setHexes([...resp])
     setBoardReady(true)
   }

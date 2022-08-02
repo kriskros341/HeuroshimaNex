@@ -157,6 +157,12 @@ const Hand: React.FC<{connection: Socket | null, selectedTile: SelectedTileUnit 
       response && setBasePlaced(true)
     })
   }
+  const use = (type: InstantActionType) => {
+    connection?.emit("req:build", selectedTile?.coords, type, selectedTile?.rotation, (data: response<TileInterface>) => {
+      const response = unwrap(data)
+      response && setBasePlaced(true)
+    })
+  }
   const [isBasePlaced, setBasePlaced] = useState(false)
   return (
     <div className={styles.hand}>
