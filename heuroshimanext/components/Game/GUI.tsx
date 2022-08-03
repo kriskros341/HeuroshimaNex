@@ -1,10 +1,11 @@
 import Image from 'next/image'
 import React, { FC, useContext, useEffect, useState } from 'react'
 import styles from '../../styles/Gui.module.css'
-import {response, color, PlayerInterface, TileInterface, SelectedTileUnit} from "../../common"
+import {response, color, PlayerInterface, TileInterface } from "../../common"
 import { PlayerContext, ConnectionContext, unwrap } from '../Contexts'
 import { Socket } from 'socket.io-client'
-import { EntityType, TileEntity } from '../../unitTypes'
+import { EntityActionType, EntityType, InstantAction, TileEntity } from '../../unitTypes'
+import { useHandStore } from '../store'
 
 const TurnCounter: React.FC<{}> = () =>{
   return(
@@ -88,7 +89,7 @@ const ButtonList = () => {
 
 }
 
-const GUI: React.FC<{selectedTile:SelectedTileUnit|null}> = ({selectedTile}) => {
+const GUI: React.FC<{selectedTile: TileInterface | null}> = ({selectedTile}) => {
   const connection = useContext(ConnectionContext)
   const {thisPlayer, refreshPlayerList, players} = useContext(PlayerContext)
   const [turn, setTurn] = useState(0)
@@ -146,51 +147,77 @@ const GUI: React.FC<{selectedTile:SelectedTileUnit|null}> = ({selectedTile}) => 
       </div>
         {selectedTile && <Stats selectedTile={selectedTile} />}
       </div>
-      <Hand connection={connection} selectedTile={selectedTile}/>
+      <Hand selectedTile={selectedTile} isStarted={isStarted}/>
     </div>
   )
 }
-const Hand: React.FC<{connection: Socket | null, selectedTile: SelectedTileUnit | null}> = ({selectedTile, connection}) => {
-  const build = (type: EntityType) => {
-    connection?.emit("req:build", selectedTile?.coords, type, selectedTile?.rotation, (data: response<TileInterface>) => {
-      const response = unwrap(data)
-      response && setBasePlaced(true)
-    })
-  }
+const Hand: React.FC<{isStarted: boolean, selectedTile: TileInterface | null}> = ({isStarted, selectedTile}) => {
+  /*
   const use = (type: InstantActionType) => {
     connection?.emit("req:build", selectedTile?.coords, type, selectedTile?.rotation, (data: response<TileInterface>) => {
       const response = unwrap(data)
       response && setBasePlaced(true)
     })
   }
-  const [isBasePlaced, setBasePlaced] = useState(false)
+
+  so I want to setActive stats. I have the enum version...
+  Or maybe if I kept only the enum version in store?
+  that would be more pog I think.
+  */
+  const [active, setSelectedCard, isBasePlaced] = useHandStore(store => 
+    [store.active, store.setActive, store.isBasePlaced]
+  )
+  const {thisPlayer} = useContext(PlayerContext)
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null)
+  useEffect(() => {
+    isStarted && thisPlayer && setSelectedCard(EntityType.Base)
+  }, [isStarted])
+  const tempCards = [
+    EntityType.Solider,
+    EntityType.Barricade,
+    EntityType.Knight,
+    EntityType.Sniper,
+    InstantAction.Nuke,
+    InstantAction.Heal
+  ]
+  if(!thisPlayer || !isStarted) {
+    return <></>
+  }
   return (
     <div className={styles.hand}>
       <Deque isActive={!!selectedTile}>
-        {isBasePlaced ?
-          <>
-            <Card onClick={() => build(EntityType.Solider)}>Solider</Card>
-            <Card onClick={() => build(EntityType.Barricade)}>Barricade</Card>
-            <Card onClick={() => build(EntityType.Knight)}>Knight</Card>
-            <Card onClick={() => build(EntityType.Sniper)}>Sniper</Card>
-          </>
+        {isBasePlaced ? 
+          tempCards.map((card, index) => 
+            <Card 
+              onClick={() => {
+                setHighlightedIndex(v => v != index ? index : null) 
+                setSelectedCard(highlightedIndex != index ? card : null)
+              }}
+              isActive={highlightedIndex == index}
+            >{card}</Card>
+          )
         :
-          <Card onClick={() => build(EntityType.Base)}>Base</Card>
+          <Card 
+            isActive={isBasePlaced} 
+            onClick={() => {
+                setSelectedCard(active == EntityType.Base ? null : EntityType.Base)
+            }}
+          >Base</Card>
         }
       </Deque>
     </div>
   )
 }
 
-const Card: React.FC<{onClick: () => void, children: string}> = ({onClick, children}) => {
+const Card: React.FC<{onClick: () => void, children: string, isActive: boolean}> = ({onClick, children, isActive}) => {
   return (
-    <div onClick={onClick} className={styles.card}>
+    <div onClick={() => {onClick()}} style={{border: isActive ? "2px solid red" : 0}}className={styles.card}>
       {children}
     </div>
   )
 }
 
-const Deque: React.FC<{children?: React.ReactElement<any, any>, isActive: boolean}> = ({children, isActive}) => {
+const Deque: React.FC<{children?: any, isActive: boolean}> = ({children, isActive}) => {
   const dequeStyle = isActive ? {} : {
     bottom: -20
   }

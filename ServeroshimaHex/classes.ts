@@ -2,7 +2,7 @@ import { responseStatus, color, coords, response, TileInterface, PlayerInterface
 import { Server, Socket } from "socket.io"
 import {Hex, HexaBoard} from "./hex_toolkit"
 import { faker } from "@faker-js/faker"
-import { EntityType, TileEntity, UnitList } from "../heuroshimanext/unitTypes"
+import { direction, EntityType, TileEntity, UnitList } from "../heuroshimanext/unitTypes"
 import { Err, Ok, Result } from "../heuroshimanext/RustlikeTypes"
 
 
@@ -35,6 +35,7 @@ export class GameHex extends Hex {
   isTaken: boolean = false
   owner: Player | null = null
   tileEntity: TileEntity | null = null
+  rotation: direction = 0
   setOwner(player: Player) {
     this.owner = player
   }
@@ -47,13 +48,15 @@ export class GameHex extends Hex {
   loadState(state: TileInterface) : void {
     this.owner = Player.getById(state.ownerId)
     this.tileEntity = state.tileEntity
-    this.isTaken = state.tileEntity == null ? false : true
+    this.isTaken = state.tileEntity == null ? false : true,
+    this.rotation = state.rotation
   }
   serialize() : TileInterface {
     return {
       ownerId: this.owner?.id || null,
       tileEntity: this.tileEntity,
-      coords: this.coords
+      coords: this.coords,
+      rotation: this.rotation
     }
   }
   clearOwner() {
@@ -129,22 +132,24 @@ export class Game {
   serializePlayers(): PlayerInterface[] {
     return this.players.map(p => ({...p.serialize(), isTurn: p.id == this.getCurrentPlayer().id}))
   }
-  build(playerId: string, tileCoords: coords, type: EntityType): Result<TileInterface, string> {
-    const tile = this.board.getTileByCoords(tileCoords)
-    if(!tile) {
+  build(playerId: string, tile: TileInterface): Result<TileInterface, string> {
+    const underlayingTile = this.board.getTileByCoords(tile.coords)
+    if(!tile || !underlayingTile) {
       return Err("No such tile!")
     }
-    if(tile.tileEntity != null)
+    if(underlayingTile?.tileEntity != null)
       return Err("The tile is not free!")
-    if(type == EntityType.Base) {
+    if(tile.tileEntity?.type == EntityType.Base) {
       this.getCurrentPlayer().basePlaced = true
     }
-    tile.build({...UnitList[type]}) // reference!??!?!
-    tile.setOwner(Player.getById(playerId)!)
+    underlayingTile.build({...UnitList[tile.tileEntity!.type]}) // reference!??!?!
+    underlayingTile.setOwner(Player.getById(playerId)!)
+    underlayingTile.rotation = tile.rotation
     const data = {
       tileEntity: tile.tileEntity, 
-      coords: tileCoords, 
-      ownerId: playerId
+      coords: tile.coords, 
+      ownerId: playerId,
+      rotation: 0 as direction
     }
     this.incrementMove()
     return Ok(data)

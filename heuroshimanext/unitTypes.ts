@@ -1,16 +1,8 @@
 
-export enum CardType {
-  instant = 0,
-  entity,
-  module
-}
-
-
-
 export type direction = 0 | 1 | 2 | 3 | 4 | 5
 export type initiative = 0 | 1 | 2 | 3
 
-export enum ActionType {
+export enum EntityActionType {
   meele = "meele",
   ranged = "ranged",
   block = "block",
@@ -18,8 +10,13 @@ export enum ActionType {
 }
 
 export interface Action {
-  type: ActionType
+  type: EntityActionType
   direction: direction
+}
+
+export interface CardType {
+  cardType: "__Entity" | "__Action"
+
 }
 
 
@@ -28,13 +25,14 @@ export interface BuildCommand {
   type: EntityType
 }
 
-export interface TileEntity {
+export interface TileEntity extends CardType {
   type: EntityType
   rotation: direction
   initiative: initiative
   health: number
   actions: Action[]
 }
+
 
 // must be repeated for indexing of UnitList
 export enum EntityType {
@@ -46,86 +44,111 @@ export enum EntityType {
 }
 
 export type EntityTypeKeys = keyof typeof EntityType
-export type ActionTypeKeys = keyof typeof ActionType
+export type ActionTypeKeys = keyof typeof EntityActionType
 
 export type UnitListInterface = {
   [key in EntityTypeKeys]: TileEntity
 }
 
+
 export const UnitList: UnitListInterface = {
   Base: {
+    cardType: "__Entity",
     rotation: 0,
     initiative: 0,
     health: Infinity,
     actions: [
-      {type: ActionType.meele, direction: 0},
-      {type: ActionType.meele, direction: 1},
-      {type: ActionType.meele, direction: 2},
-      {type: ActionType.meele, direction: 3},
-      {type: ActionType.meele, direction: 4},
-      {type: ActionType.meele, direction: 5},
+      {type: EntityActionType.meele, direction: 0},
+      {type: EntityActionType.meele, direction: 1},
+      {type: EntityActionType.meele, direction: 2},
+      {type: EntityActionType.meele, direction: 3},
+      {type: EntityActionType.meele, direction: 4},
+      {type: EntityActionType.meele, direction: 5},
     ],
     type: EntityType.Base
   },
   Solider: {
+    cardType: "__Entity",
     rotation: 0,
     initiative: 2,
     health: 2,
     actions: [
-      {type: ActionType.ranged, direction: 0},
-      {type: ActionType.meele, direction: 1} 
+      {type: EntityActionType.ranged, direction: 0},
+      {type: EntityActionType.meele, direction: 1} 
     ],
     type: EntityType.Solider
   },
   Barricade: {
+    cardType: "__Entity",
     rotation: 0,
     initiative: 0,
     health: 6,
     actions: [
-      {type: ActionType.block, direction: 5}, 
-      {type: ActionType.block, direction: 0}, 
-      {type: ActionType.block, direction: 1}, 
+      {type: EntityActionType.block, direction: 5}, 
+      {type: EntityActionType.block, direction: 0}, 
+      {type: EntityActionType.block, direction: 1}, 
     ],
     type: EntityType.Barricade
   },
   Knight: {
+    cardType: "__Entity",
     rotation: 0,
     initiative: 3,
     health: 4,
     actions: [
-      {type: ActionType.meele, direction: 0},
-      {type: ActionType.block, direction: 0}
+      {type: EntityActionType.meele, direction: 0},
+      {type: EntityActionType.block, direction: 0}
     ],
     type: EntityType.Knight
   },
   Sniper: {
+    cardType: "__Entity",
     rotation: 0,
     initiative: 0,
     health: 1,
-    actions: [{type: ActionType.piercing, direction: 0}],
+    actions: [{type: EntityActionType.piercing, direction: 0}],
     type: EntityType.Sniper
   }
 }
 
 export enum InstantAction {
   Nuke = "Nuke",
+  Heal = "Heal"
 }
 
-export interface InstantActionInterface {
-  radius: number
+export interface InstantActionInterface extends CardType {
+  cardType: "__Action",
+  type: InstantAction,
+  radius: number,
+  stats: any
 }
+
+
 
 export type InstantActionTypeKeys = keyof typeof InstantAction
+
 
 export type InstantActionListInterface = {
   [key in InstantActionTypeKeys]: InstantActionInterface
 }
 
-export enum InstantAction {
-
+const ActionList: InstantActionListInterface = {
+  Nuke: {
+    cardType: "__Action",
+    type: InstantAction.Nuke,
+    radius: 1,
+    stats: {
+      damage: 1
+    }
+  },
+  Heal: {
+    cardType: "__Action",
+    type: InstantAction.Heal,
+    radius: 1,
+    stats: {
+      healing: 1
+    }
+  }
 }
 
-export interface InstantActionType {
-
-
-}
+export type ActiveCard = EntityType | InstantAction

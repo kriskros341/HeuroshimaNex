@@ -1,12 +1,10 @@
 import type { NextPage } from 'next'
 import dynamic from "next/dynamic"
 import Head from 'next/head'
-import Image from 'next/image'
 import { useContext, useEffect, useState } from 'react'
 import styles from '../../styles/Game.module.css'
-import {response, color, PlayerInterface, TileInterface, GameOptions, SelectedTileUnit} from "../../common"
-import { io, Socket } from 'socket.io-client'
-import { PlayerContext, ConnectionContext, unwrap, Config } from '../../components/Contexts'
+import {response, color, PlayerInterface, TileInterface, GameOptions } from "../../common"
+import { PlayerContext, ConnectionContext, unwrap } from '../../components/Contexts'
 import GUI from "../../components/Game/GUI"
 import { useSocket } from '../../components/Connection'
 import { GetServerSideProps } from 'next'
@@ -23,7 +21,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
 const G: NextPage<{gameId: number}> = ({gameId}) => {
   const [gameOptions, setGameOptions] = useState<GameOptions>()
-  const [selected, setSelected]=useState<SelectedTileUnit | null>(null)
+  const [selected, setSelected]=useState<TileInterface | null>(null)
+
   const [player, setPlayer] = useState<PlayerInterface | null>(null)
   const [players, setPlayers] = useState<PlayerInterface[]>([])
   
@@ -36,7 +35,6 @@ const G: NextPage<{gameId: number}> = ({gameId}) => {
     const data = unwrap(response)
     data && handleSetPlayerList(data)
   }
-  console.log(player)
   const refreshPlayerList = () => {
     connection && connection.emit("sync_players", (d: response<PlayerInterface[]>) => handleRefreshPlayerList(d))
   }
@@ -63,7 +61,7 @@ const G: NextPage<{gameId: number}> = ({gameId}) => {
     players: players,
     refreshPlayerList: refreshPlayerList,
     displayedTile: selected,
-    setDisplayedTile: (v: SelectedTileUnit | null) => setSelected(v)
+    setDisplayedTile: (v: TileInterface | null) => setSelected(v)
   }
     
   return (
@@ -77,7 +75,7 @@ const G: NextPage<{gameId: number}> = ({gameId}) => {
           <Game 
             connection={connection} 
             playerContext={playerContext!} 
-            pickHex={(v: SelectedTileUnit | null) => setSelected(v)}
+            pickHex={(v: TileInterface | null) => setSelected(v)}
           />
         }
         <ConnectionContext.Provider value={connection}>

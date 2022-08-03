@@ -5,7 +5,7 @@ import cors from "cors"
 import { responseStatus, color, LobbyInterface, coords, response, TileInterface, PlayerInterface, negativeResponse, positiveResponse, GameOptions, TurnMessageInterface} from "../heuroshimanext/common"
 import { responseFrom, Game, positive, negative, Player } from "./classes"
 import {faker} from "@faker-js/faker"
-import { EntityType, TileEntity, direction } from "../heuroshimanext/unitTypes"
+import { EntityType, TileEntity, direction, ActiveCard, InstantAction } from "../heuroshimanext/unitTypes"
 import { Ok, Err, Result } from "../heuroshimanext/RustlikeTypes"
 
 type callback<T> = (response: response<T>) => void
@@ -111,26 +111,23 @@ class NetworkGameFacade {
     tile.tileEntity.rotation = direction
     return Ok({})
   }
-  build(socket: Socket, tileCoords: coords, type: EntityType): Result<TileInterface, string> {
+  build(socket: Socket, tile: TileInterface): Result<TileInterface, string> {
     const issues = this.game.checkForPlayerIssues(socket.id)
     if(issues)
       return Err(issues)
-    if(!tileCoords) {
-      return Err("No tile selected!")
-    }
     if(this.game.usedPlayerMoves >= 2)
       return Err("ran out of moves!")
     const player = this.game.getCurrentPlayer()
     if(!player.basePlaced) {
-      if(type != EntityType.Base)
+      if(tile.tileEntity?.type != EntityType.Base)
         return Err("must place base first!")
     } else {
-      if(type == EntityType.Base) {
+      if(tile.tileEntity?.type == EntityType.Base) {
         return Err("You may only have one base!")
       }
     }
     player.basePlaced = true
-    const result = this.game.build(socket.id, tileCoords, type)
+    const result = this.game.build(socket.id, tile)
     if(result._tag == "Err") {
       return Err(result.err)
     }
@@ -233,8 +230,8 @@ gameNamespace.on("connection", async (socket: MySocket) => {
     gameNamespace.to(socket.game!.id).emit("broad:sync_players", players)
     callback(player)
   })
-  socket.on("req:build", (tileCoords: coords, type: EntityType, rotation: direction, callback: callback<TileInterface>) => {
-    const data = socket.game!.build(socket, tileCoords, type)
+  socket.on("req:build", (tile: TileInterface, callback: callback<TileInterface>) => {
+    const data = socket.game!.build(socket, tile)
     if(data._tag == "Err")
       return callback(negative(data.err))
     gameNamespace.to(socket.game!.id).emit("broad:build", data.ok)
@@ -251,7 +248,8 @@ gameNamespace.on("connection", async (socket: MySocket) => {
     if(tile.owner?.id != socket.id) {
       return
     }
-    tile.tileEntity.rotation = rotation
+    tile.rotation = rotation
+    console.log(rotation)
 
     const board = socket.game?.serializeBoard()
     gameNamespace.to(socket.game!.id).emit("broad:rotate", board)

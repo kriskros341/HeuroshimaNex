@@ -26,11 +26,9 @@ export interface TileInterface {
   ownerId: string | null
   tileEntity: TileEntity | null
   coords: coords
-}
-
-export interface SelectedTileUnit extends TileInterface {
   rotation: direction
 }
+
 
 export type color = [number, number, number] | null
 
