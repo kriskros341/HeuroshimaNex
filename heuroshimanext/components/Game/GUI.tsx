@@ -122,11 +122,20 @@ const GUI: React.FC<{selectedTile: TileInterface | null}> = ({selectedTile}) => 
     }
   }, [connection])
   const restart = () => connection?.emit("req:restart", handleRestart)
+  console.log(selectedTile)
   const next_turn = () =>{
     console.log("Requested next turn")
     connection?.emit("req:turn", handleNextTurn)
   }
   const isMyMove = thisPlayer?.isTurn || false
+  const attack = () => {
+    //i need to access selected
+      // I need to either create store or access state through drilling/context
+      
+    //i need to send attack to server
+    //i need to calculate damage on the server
+    //i need to broadcast board
+  }
   return (
     <div className={styles.guiContainer}>
       <div className={styles.gui}>
@@ -138,6 +147,7 @@ const GUI: React.FC<{selectedTile: TileInterface | null}> = ({selectedTile}) => 
           isStarted ? (
             <>
               <MyButton fun={restart}>restart</MyButton>
+              <MyButton fun={attack}>attack debug</MyButton>
               <MyButton fun={next_turn}>Next Turn</MyButton>
             </>
           ) : (
