@@ -188,7 +188,8 @@ const Hand: React.FC<{isStarted: boolean, selectedTile: TileInterface | null}> =
     EntityType.Knight,
     EntityType.Sniper,
     InstantAction.Nuke,
-    InstantAction.Heal
+    InstantAction.Heal,
+    InstantAction.War,
   ]
   if(!thisPlayer || !isStarted) {
     return <></>

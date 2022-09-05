@@ -6,11 +6,12 @@ import { PlayerContext, ConnectionContext, unwrap } from "../Contexts"
 import { Socket } from "socket.io-client"
 import { StaticDrawUsage, Vector2, Vector3 } from "three"
 import { useTexture, Html } from "@react-three/drei"
-import { EntityType, UnitList, ActionTypeKeys, direction, EntityActionType, ActiveCard } from "../../unitTypes"
+import { EntityType, UnitList, ActionTypeKeys, direction, EntityActionType, ActiveCard, InstantAction } from "../../unitTypes"
 import { useHandStore } from "../store"
 import { HexSideCount, defaultTextureRotation, HexOld, InteractiveHex } from "./Hex"
 
 
+//duplicate
 const directionToHex: Record<number, coords> = {
   0: {x: 1, y: 0},
   1: {x: 0, y: 1},
@@ -126,6 +127,7 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
       connection?.off("broad:build", r)
     }
   }, [connection?.active])
+
   const serverRotate = (newRotation: direction, hex: TileInterface) => {
     connection?.emit("req:rotate", hex.coords, newRotation, (resp: response<{}>) => {
       console.log("rotate: ", resp)
@@ -143,13 +145,13 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
       }
     })
   }
-  const empty = useTexture("http://heuroshimanex.ddns.net:3000/assets/empty.png")
+  const empty = useTexture("http://hnex.ddns.net:3000/assets/empty.png")
   const textures = useTexture<Record<EntityType, string>>({
-    Base: "http://heuroshimanex.ddns.net:3000/assets/base.png",
-    Solider: "http://heuroshimanex.ddns.net:3000/assets/army.png",
-    Barricade: "http://heuroshimanex.ddns.net:3000/assets/obstacle.png", 
-    Knight: "http://heuroshimanex.ddns.net:3000/assets/sword.png",
-    Sniper: "http://heuroshimanex.ddns.net:3000/assets/sniper.png",
+    Base: "http://hnex.ddns.net:3000/assets/base.png",
+    Solider: "http://hnex.ddns.net:3000/assets/army.png",
+    Barricade: "http://hnex.ddns.net:3000/assets/obstacle.png", 
+    Knight: "http://hnex.ddns.net:3000/assets/sword.png",
+    Sniper: "http://hnex.ddns.net:3000/assets/sniper.png",
   })
   useEffect(() => {
     textures[EntityType.Solider].center = new THREE.Vector2(0.5, 0.5)
@@ -171,6 +173,9 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
       height: 0.1,
       gridOffset: gridOffset
     }
+  }
+  const use = (action: InstantAction, coords: coords) => {
+    connection?.emit("req:use_action", action, coords)
   }
   return (
     <>
@@ -232,7 +237,16 @@ const BoardInteractionManager: React.FC<{refreshBoard: () => void, hexes: TileIn
               if action in actions:
                 use
             */
-            !!projectedHex.tileEntity && build(projectedHex.tileEntity.type)
+            console.log(projectedHex, selectedCard)
+            if(!selectedCard) {
+              return
+            }
+            if(selectedCard in EntityType) {
+              !!projectedHex.tileEntity && build(projectedHex.tileEntity.type)
+            }
+            if(selectedCard in InstantAction) {
+              use(selectedCard as InstantAction, projectedHex.coords)
+            }
           }}
           materialProps={{color: 0x00ff00}}
           onHoverSideChange={(direction: direction) => {

@@ -26,7 +26,7 @@ const G: NextPage<{gameId: number}> = ({gameId}) => {
   const [player, setPlayer] = useState<PlayerInterface | null>(null)
   const [players, setPlayers] = useState<PlayerInterface[]>([])
   
-  const connection = useSocket(`ws://heuroshimanex.ddns.net:8000/game`)
+  const connection = useSocket(`ws://hnex.ddns.net:8000/game`)
   const handleSetPlayerList = (data: PlayerInterface[]) => {
     setPlayers(data)
     setPlayer(data?.find(p => p.id == connection?.id) || null)

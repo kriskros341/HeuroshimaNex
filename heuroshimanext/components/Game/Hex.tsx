@@ -179,6 +179,7 @@ export const GameHex: React.FC<GameHexInterface & HexEventListeners> = (props) =
       (style.gridOffset + style.radius) * 3./2 * hex.coords.y, 0)
   const finalPosition = offset ? position.add(offset) : position
   const meshProps = {...props, position: finalPosition, color: tileColor}
+  hex.tileEntity?.health && console.log(hex.tileEntity.health)
   return (
     <>
       <Hex 

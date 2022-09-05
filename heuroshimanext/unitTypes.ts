@@ -113,7 +113,8 @@ export const UnitList: UnitListInterface = {
 
 export enum InstantAction {
   Nuke = "Nuke",
-  Heal = "Heal"
+  Heal = "Heal",
+  War = "War"
 }
 
 export interface InstantActionInterface extends CardType {
@@ -148,6 +149,12 @@ const ActionList: InstantActionListInterface = {
     stats: {
       healing: 1
     }
+  },
+  War: {
+    cardType: "__Action",
+    type: InstantAction.War,
+    radius: 0,
+    stats: {}
   }
 }
 

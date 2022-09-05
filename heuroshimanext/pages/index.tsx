@@ -9,7 +9,7 @@ const Home: NextPage = () => {
   const connection = useContext(ConnectionContext)
   const lobby = () => router.replace("/lobby")
   const createGame = () => {
-    fetch("http://heuroshimanex.ddns.net:8000/create_game")
+    fetch("http://hnex.ddns.net:8000/create_game")
       .then(d => d.json())
       .then(d => 
           router.push(`game/${d.gameId}`)
