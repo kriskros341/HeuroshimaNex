@@ -76,43 +76,91 @@ class NetworkGameFacade {
       hexes.
       filter(hex => hex.tileEntity).
       sort(hex => -hex.tileEntity.initiative).
-      map(hex => ({...hex.tileEntity, position: hex.coords, owner: hex.owner}))
+      map(hex => (
+        {
+          ...hex.tileEntity, 
+          rotation: hex.tileEntity ? hex.rotation + hex.tileEntity.rotation : hex.rotation, 
+          position: hex.coords, 
+          owner: hex.owner
+        }
+      )
+    )
+    let lastInitiative = Infinity;
+    let scheduledDeaths: coords[] = [];
+    const applyDamage = (target: coords, amount: number) => {
+      this.game.board.hexes.forEach(hex => {
+        if(hex.coords.x != target.x || hex.coords.y != target.y) {
+          return;
+        }
+        if (!hex.tileEntity) {
+          return;
+        }
+        hex.tileEntity.health -= amount
+        if (hex.tileEntity.health <= 0) {
+          scheduledDeaths.push(target)
+        }
+      })
+
+    }
+    const clearDeadEntities = () => {
+      for (let scheduledDeath of scheduledDeaths) {
+        this.game.board.hexes.forEach(hex => {
+            if(hex.coords.x == scheduledDeath.x && hex.coords.y == scheduledDeath.y
+            ) {
+              hex.empty()
+            }
+        })
+      }
+      scheduledDeaths = []
+    }
     for (let entity of entities) {
-      console.log("e", entity)
+      // on initiative change clear dead tiles
+      if (lastInitiative > entity.initiative) {
+        lastInitiative = entity.initiative
+        clearDeadEntities();
+      }
       for (let action of entity.actions) {
-        let direction = directionToHex[(action.direction + entity.rotation) % HexSideCount]
+        let direction = directionToHex[(entity.rotation + action.direction) % HexSideCount]
+        console.log(direction, action.direction + entity.rotation)
+        //for now fuck dry let me just get it to work
         switch(action.type) {
           case EntityActionType.block: {
             break;
           }
           case EntityActionType.meele: {
-            this.game.board.hexes.forEach(hex => {
-              if(
-                hex.coords.x == entity.position.x + direction.x &&
-                hex.coords.y == entity.position.y + direction.y
-              ) {
-                if (hex.tileEntity) {
-                  hex.tileEntity.health -= 1
-                  console.log("a", action, hex.tileEntity)
-                  if (hex.tileEntity.health <= 0) {
-                    hex.empty()
-                  }
-                }
+            const target = this.game.board.hexes.find(hex => 
+              hex.coords.x == entity.position.x + direction.x &&
+              hex.coords.y == entity.position.y + direction.y
+            )
+            console.log(target)
+            if(!target) {
+              break;
+            }
+            applyDamage(target.coords, 1)  
+            break;
+          }
+          case EntityActionType.ranged: {
+            //5 as max map size
+            for (let n = 1; n < 5; n++) {
+              const target = this.game.board.hexes.find(hex => 
+                hex.coords.x == entity.position.x + direction.x * n &&
+                hex.coords.y == entity.position.y + direction.y * n
+              )
+              if(!target) {
+                break;
               }
-            })
+              applyDamage(target.coords, 1)  
+            }
             break;
           }
           case EntityActionType.piercing: {
             break;
           }
-          case EntityActionType.ranged: {
-            break;
-          }
         }
-
       }
-
     }
+    //last one check if there are any dead entities
+    clearDeadEntities();
   }
   start() {
     this.game.startGame()
@@ -296,6 +344,7 @@ gameNamespace.on("connection", async (socket: MySocket) => {
     const board = socket.game?.serializeBoard()
     gameNamespace.to(socket.game!.id).emit("broad:rotate", board)
     console.log(action, coords)
+    console.log(board)
   })
   socket.on("req:rotate", (tileCoords, rotation, callback: callback<{}>) => {
     const tile = socket.game!.game.board.getTileByCoords(tileCoords)
