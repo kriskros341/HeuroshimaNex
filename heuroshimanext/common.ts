@@ -34,8 +34,9 @@ export type color = [number, number, number] | null
 
 export interface PlayerInterface {
   id: string,
-  color: color
-  isTurn: boolean
+  color: color,
+  isTurn: boolean,
+  score: number
 }
 
 export interface LobbyInterface {

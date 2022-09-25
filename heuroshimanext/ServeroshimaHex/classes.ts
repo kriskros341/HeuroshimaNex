@@ -79,6 +79,7 @@ export class GameHex extends Hex {
 export class Player {
   static objects: Player[] = []
   basePlaced: boolean = false
+  score: number = 0
   static getById(id: string | null) {
     const player = Player.objects.find(player => player.id == id)
     return player ? player : null
@@ -95,7 +96,7 @@ export class Player {
     this.color = value
   }
   serialize() {
-    return {id: this.id, color: this.color}
+    return {id: this.id, color: this.color, score: this.score}
   }
 
   remove() {
@@ -138,7 +139,7 @@ export class Game {
   serializePlayers(): PlayerInterface[] {
     return this.players.map(p => ({...p.serialize(), isTurn: p.id == this.getCurrentPlayer().id}))
   }
-  build(playerId: string, tile: TileInterface): Result<TileInterface, string> {
+  build(playerId: string, tile: TileInterface): Result<TileInterface> {
     const underlayingTile = this.board.getTileByCoords(tile.coords)
     if(!tile || !underlayingTile) {
       return Err("No such tile!")

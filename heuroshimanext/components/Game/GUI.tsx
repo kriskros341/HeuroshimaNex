@@ -22,19 +22,20 @@ const GamerList:React.FC<{showIf: boolean, turn: number, players: PlayerInterfac
     return <div>you are alone.</div>
   }
   return(
-      <div>
-    gamers:
+    <div>
+      gamers:
       {players.map((p, idx) => {
         if(p.id == thisPlayer?.id) {
           return
         }
         const isTurn = p.id == players[turn % players.length].id
-        return <li 
-          key={`listed_${p.id}${idx}`}
-          style={{color: isTurn ? "green" : "white"}}
-        >{p.id}
-        <span style={{backgroundColor: `rgba(${p.color![0]}, ${p.color![1]}, ${p.color![2]})`}} className={styles.colorIndicator}></span>
-        </li>
+        return (
+          <li key={`listed_${p.id}${idx}`}>
+            <span style={{color: isTurn ? "green" : "white"}}>{p.id}</span>
+            <span style={{backgroundColor: `rgba(${p.color![0]}, ${p.color![1]}, ${p.color![2]})`}} className={styles.colorIndicator}></span>
+            {p.score}
+          </li>
+        )
       }
       )}
     </div>
@@ -76,7 +77,7 @@ const PlayerIndicator: FC<{isMyMove: boolean}> = ({isMyMove}) => {
   }
   return (
     <span style={{color: isMyMove ? "green" : "white"}}>
-      Player ID: {thisPlayer?.id} 
+      Player ID: {thisPlayer?.id}
       <span 
         style={{backgroundColor: `rgba(${thisPlayer.color![0]}, ${thisPlayer.color![1]}, ${thisPlayer.color![2]})`}} 
         className={styles.colorIndicator} 
@@ -139,8 +140,8 @@ const GUI: React.FC<{selectedTile: TileInterface | null}> = ({selectedTile}) => 
   return (
     <div className={styles.guiContainer}>
       <div className={styles.gui}>
-        <div id="mainGui">GUIII<br />
-        <b>Turn: {turn}</b><br />
+        <div id="mainGui">
+        <b>Turn: {turn} | score: {thisPlayer.score}</b><br />
         <PlayerIndicator isMyMove={!!isMyMove}/>
         <GamerList showIf={players.length > 0} turn={turn} players={players}/>
         {

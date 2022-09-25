@@ -121,12 +121,6 @@ const SelectionIndicatior: React.FC<{hexPosition: Vector3, hexRadius: number}> =
   )
 }
 
-type RecursivePartial<T> = {
-    [P in keyof T]?: RecursivePartial<T[P]>;
-};
-
-type PartialExcept<T, K extends keyof T> = RecursivePartial<T> & Pick<T, K>;
-
 interface HexInterface extends MeshProps {
   materialProps?: Partial<MeshStandardMaterialProps>,
   style: {
@@ -137,8 +131,6 @@ interface HexInterface extends MeshProps {
   }
   transparent?: boolean
 } 
-/*
-*/
 
 const Hex: React.FC<HexInterface> = (props) => {
   const {style: {radius, height}, materialProps, transparent} = props
@@ -179,7 +171,7 @@ export const GameHex: React.FC<GameHexInterface & HexEventListeners> = (props) =
       (style.gridOffset + style.radius) * 3./2 * hex.coords.y, 0)
   const finalPosition = offset ? position.add(offset) : position
   const meshProps = {...props, position: finalPosition, color: tileColor}
-  hex.tileEntity?.health && console.log(hex.tileEntity.health)
+  hex.tileEntity?.health && console.log("h", hex.tileEntity.health)
   return (
     <>
       <Hex 
@@ -232,76 +224,6 @@ export const InteractiveHex: React.FC<GameHexInterface & HexEventListeners> = (p
       <GameHex 
         {...props}
       />
-    </>
-  )
-}
-
-export const HexOld: React.FC<HexProps> = ({onHover, isHighlighted, transparent, hex, isSelected, setSelected, texture, style: {radius, gridOffset, height}, onHoverSideChange, onClick}) => {
-  let rotation: direction = ((hex.tileEntity?.rotation || 0) + hex.rotation) as direction
-  const playerColor = useContext(PlayerContext).players.find(p => p.id == hex.ownerId)?.color
-  const {setDisplayedTile} = useContext(PlayerContext)
-  const entityType = hex.tileEntity?.type || null
-  useEffect(() => {
-    select()
-  }, [entityType])
-  useEffect(() => {
-    isSelected && setDisplayedTile({...hex, rotation: rotation})
-  }, [rotation])
-  const position = new THREE.Vector3((gridOffset + radius) * (Math.sqrt(3) *  hex.coords.x + Math.sqrt(3)/2 * hex.coords.y), (gridOffset+radius) * 3./2 * hex.coords.y, 0)
-  const tileColor = playerColor ? 
-    rgbToHex(...playerColor) : 0xffffff
-  const [entityStats, setEntityStats] = 
-    useState(entityType ? UnitList[entityType] : null)  
-  const select = () => {
-    setDisplayedTile({...hex, rotation: rotation})
-    setEntityStats(entityType ? {...UnitList[entityType]} : null)
-  }
-  return (
-    <>
-      <mesh
-        onClick={(e) => {
-          e.stopPropagation()
-          onClick && onClick(hex)
-          select()
-          setSelected({...hex, rotation: rotation})
-        }}
-        onPointerMove={(e) => {
-          e.stopPropagation()
-          onHover(e)
-          const pointOnHex = e.point.sub(position)
-          const angleFromCenter: number = 
-            Math.atan2(pointOnHex.y, pointOnHex.x) + rotationFromAxis
-          const partOfHex = 
-            THREE.MathUtils.euclideanModulo((angleFromCenter) / (2 * Math.PI) * 6, 6)
-          const floored = Math.floor(partOfHex) as direction
-          if(hex.tileEntity && floored != rotation) {
-            isSelected && onHoverSideChange && onHoverSideChange(floored)//setRotation(floored)
-          }
-        }}
-        rotation={[Math.PI/2, 0, 0]}
-        position={position}
-      >
-        <meshStandardMaterial 
-          color={isHighlighted ? 0xff0000 : tileColor} 
-          map={texture} 
-          transparent={!!transparent} 
-          opacity={transparent ? 0.5 : 1}
-        />
-        <cylinderGeometry args={[radius, radius, height, HexSideCount, 1]} />
-      </mesh>
-      {isSelected && <SelectionIndicatior hexPosition={position} hexRadius={radius}/>}
-      {entityStats?.health && <Html style={{color: "orange"}} position={position.clone().sub(new Vector3(0.2, 1.5, 0))}>{entityStats.health}</Html>}
-      {entityStats && entityStats.actions.map((stats, idx) => {
-        return (
-          <ActionIndicator 
-            key={`${hex.coords.x}_${hex.coords.y}_${idx}`}
-            position={position}
-            action={stats.type}
-            hexRadius={radius}
-            rotation={rotation + stats.direction}
-            {...IndicatorOptions[stats.type]}
-          />)
-      })}
     </>
   )
 }

@@ -8,7 +8,7 @@ import { StaticDrawUsage, Vector2, Vector3 } from "three"
 import { useTexture, Html } from "@react-three/drei"
 import { EntityType, UnitList, ActionTypeKeys, direction, EntityActionType, ActiveCard, InstantAction } from "../../unitTypes"
 import { useHandStore } from "../store"
-import { HexSideCount, defaultTextureRotation, HexOld, InteractiveHex } from "./Hex"
+import { HexSideCount, defaultTextureRotation, InteractiveHex } from "./Hex"
 
 
 //duplicate

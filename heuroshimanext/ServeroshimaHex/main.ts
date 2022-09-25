@@ -7,6 +7,8 @@ import { responseFrom, Game, positive, negative, Player } from "./classes"
 import {faker} from "@faker-js/faker"
 import { EntityType, TileEntity, direction, ActiveCard, InstantAction, EntityActionType } from "../unitTypes"
 import { Ok, Err, Result } from "../RustlikeTypes"
+import { number } from "zod"
+import { timingSafeEqual } from "crypto"
 
 type callback<T> = (response: response<T>) => void
 
@@ -70,12 +72,7 @@ class NetworkGameFacade {
     this.game = new Game()
   }
   war() {
-    const entities = this.
-      game.
-      board.
-      hexes.
-      filter(hex => hex.tileEntity).
-      sort(hex => -hex.tileEntity.initiative).
+    const entities = this.game.board.hexes.filter(hex => hex.tileEntity).sort(hex => -hex.tileEntity.initiative).
       map(hex => (
         {
           ...hex.tileEntity, 
@@ -102,6 +99,13 @@ class NetworkGameFacade {
       })
 
     }
+    const getTileEntity = (x: number, y: number) => {
+      return this.game.board.hexes.find(hex => 
+        hex.coords.x == x &&
+        hex.coords.y == y
+      )
+    }
+            
     const clearDeadEntities = () => {
       for (let scheduledDeath of scheduledDeaths) {
         this.game.board.hexes.forEach(hex => {
@@ -128,13 +132,13 @@ class NetworkGameFacade {
             break;
           }
           case EntityActionType.meele: {
-            const target = this.game.board.hexes.find(hex => 
-              hex.coords.x == entity.position.x + direction.x &&
-              hex.coords.y == entity.position.y + direction.y
-            )
+            const target = getTileEntity(entity.position.x + direction.x, entity.position.y + direction.y)
             console.log(target)
             if(!target) {
               break;
+            }
+            if (target.tileEntity?.type == EntityType.Base) {
+              entity.owner.score += 1
             }
             applyDamage(target.coords, 1)  
             break;
@@ -142,18 +146,32 @@ class NetworkGameFacade {
           case EntityActionType.ranged: {
             //5 as max map size
             for (let n = 1; n < 5; n++) {
-              const target = this.game.board.hexes.find(hex => 
-                hex.coords.x == entity.position.x + direction.x * n &&
-                hex.coords.y == entity.position.y + direction.y * n
-              )
+              const target = getTileEntity(entity.position.x + direction.x * n, entity.position.y + direction.y * n)
               if(!target) {
                 break;
               }
-              applyDamage(target.coords, 1)  
+              if (target.tileEntity?.type == EntityType.Base) {
+                entity.owner.score += 1
+              }
+              if(target.tileEntity) {
+                applyDamage(target.coords, 1)  
+                break;
+              }
             }
             break;
           }
           case EntityActionType.piercing: {
+            //5 as max map size
+            for (let n = 1; n < 5; n++) {
+              const target = getTileEntity(entity.position.x + direction.x * n, entity.position.y + direction.y * n)
+              if(!target) {
+                break;
+              }
+              if (target.tileEntity?.type == EntityType.Base) {
+                entity.owner.score += 1
+              }
+              applyDamage(target.coords, 1)  
+            }
             break;
           }
         }
@@ -180,7 +198,7 @@ class NetworkGameFacade {
   serializeBoard() {
     return this.game.serializeBoard()
   }
-  nextTurn(socket: MySocket): Result<TurnMessageInterface, string> {
+  nextTurn(socket: MySocket): Result<TurnMessageInterface> {
     if(!this.getPlayerById(socket.id)) {
       return Err("create a player!")
     }
@@ -196,7 +214,7 @@ class NetworkGameFacade {
     return responseFrom({color: player.color})
   }
   //unused
-  rotateEntity(socket: Socket, coords: coords, direction: direction): Result<{}, string> {
+  rotateEntity(socket: Socket, coords: coords, direction: direction): Result<{}> {
     const tile = this.game.board.getTileByCoords(coords)
     if(!tile) {
       return Err("rotation: no such tile");
@@ -205,12 +223,12 @@ class NetworkGameFacade {
       return Err("rotation: no entity on tile");
     }
     if(tile.owner?.id != socket.id) {
-      return Err("rotation: you dont own this entity dumbfucrk");
+      return Err("rotation: you dont own this entity dumbfurk");
     } 
     tile.tileEntity.rotation = direction
     return Ok({})
   }
-  build(socket: Socket, tile: TileInterface): Result<TileInterface, string> {
+  build(socket: Socket, tile: TileInterface): Result<TileInterface> {
     const issues = this.game.checkForPlayerIssues(socket.id)
     if(issues)
       return Err(issues)
@@ -342,7 +360,10 @@ gameNamespace.on("connection", async (socket: MySocket) => {
       socket.game?.war()
     }
     const board = socket.game?.serializeBoard()
+    const players = socket.game?.serializePlayers()
     gameNamespace.to(socket.game!.id).emit("broad:rotate", board)
+    gameNamespace.to(socket.game!.id).emit("broad:sync_players", players)
+    socket.emit("broad:sync_players", players) //this doesnt work :/ ?!?
     console.log(action, coords)
     console.log(board)
   })
